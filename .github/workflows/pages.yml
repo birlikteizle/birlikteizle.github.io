@@ -29,6 +29,12 @@ jobs:
       - name: Depoyu al
         uses: actions/checkout@v4
 
+      # Pages daha önce etkinleştirilmediyse bu adım kendisi etkinleştirir.
+      - name: Pages'i hazırla
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - name: Node kur
         uses: actions/setup-node@v4
         with:
