@@ -11,7 +11,9 @@
     "start": "node server/index.mjs",
     "serve": "npm run build && node server/index.mjs",
     "build": "tsc -b && vite build",
+    "build:p2p": "tsc -b && vite build --mode p2p",
     "preview": "vite preview",
+    "preview:p2p": "vite preview --mode p2p",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
@@ -37,6 +39,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "trystero": "^0.27.0"
   }
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
+import { isP2P } from '@/lib/mode'
 
 export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'offline'
 
@@ -19,6 +20,19 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
+    // Sunucusuz modda bağlantı durumu tarayıcının çevrimiçi hâline dayanır;
+    // yoklanacak bir API sunucusu yoktur.
+    if (isP2P) {
+      const update = () => setStatus(navigator.onLine ? 'online' : 'offline')
+      update()
+      window.addEventListener('online', update)
+      window.addEventListener('offline', update)
+      return () => {
+        window.removeEventListener('online', update)
+        window.removeEventListener('offline', update)
+      }
+    }
+
     let cancelled = false
     let controller: AbortController | null = null
 

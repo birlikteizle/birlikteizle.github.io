@@ -12,6 +12,51 @@ kontrol ettiği bir web uygulaması.
 - **Sohbet:** Oda içi mesajlar aynı gerçek zamanlı kanaldan iletilir.
 - **Ekran paylaşımı (WebRTC):** Gömülü oynatmayı engelleyen sitelerden bile (Netflix, film siteleri)
   sesli-görüntülü birlikte izleme.
+- **İki çalışma modu:** kendi sunucun (kalıcı) veya **sunucusuz P2P** (GitHub Pages'te çalışır).
+
+---
+
+## İki mod: hangisi ne zaman?
+
+| | **Sunucu modu** (varsayılan) | **Sunucusuz P2P modu** |
+| --- | --- | --- |
+| Komut | `npm run build` | `npm run build:p2p` |
+| Nerede çalışır | Node sunucusu (Oracle VM, kendi makinen) | Yalnızca statik dosya sunan her yer (GitHub Pages) |
+| Oda/mesaj kalıcı mı | ✅ Sunucuda saklanır | ❌ Yalnızca bellek; ikisi de çıkınca biter |
+| Aynı anda çevrimiçi olma | Gerekmez | **Gerekir** |
+| Adres | `http://<sunucu-ip>:8787/#/room/...` | `https://<kullanıcı>.github.io/<depo>/#/room/...` |
+| Kurulum | Docker/sunucu | GitHub deposu + Pages |
+| Ağ gereksinimi | Sunucuya erişim | Eşler arası WebRTC (TURN gerekebilir) |
+
+Sunucusuz modda sinyalleşme herkese açık Nostr relay'leri üzerinden yapılır (Trystero); oda verisi
+ve medya **doğrudan tarayıcılar arasında** taşınır, hiçbir sunucudan geçmez.
+
+---
+
+## Sunucusuz sürümü GitHub Pages'te yayınlama
+
+1. Depoyu GitHub'a push et (aşağıdaki *GitHub* bölümüne bak).
+2. GitHub'da **Settings → Pages → Build and deployment → Source: GitHub Actions** seç.
+3. `main` dalına her push'ta `.github/workflows/pages.yml` çalışır ve site yayınlanır.
+4. Adres: `https://<KULLANICI>.github.io/<DEPO>/`
+
+Yerelde denemek için:
+
+```powershell
+npm.cmd run build:p2p
+npm.cmd run preview:p2p      # http://localhost:4173
+```
+
+> Aynı tarayıcıda iki sekme açarsan aynı kimliği paylaşırlar. Gerçek test için iki farklı cihaz
+> (veya biri gizli pencere) kullan.
+
+### Sunucusuz modun sınırları
+
+- Oda ve mesajlar **kalıcı değildir**; sayfa yenilenince geçmiş kaybolur, partnerin varsa durumu yeniden gönderir.
+- **İki taraf da aynı anda çevrimiçi olmalıdır.**
+- Çok kısıtlı ağlarda (simetrik NAT, kurumsal güvenlik duvarı) doğrudan bağlantı kurulamaz;
+  `VITE_TURN_*` ile bir TURN sunucusu tanımlaman gerekir.
+- Ekran paylaşımı ve tam senkron için HTTPS gerekir (GitHub Pages zaten HTTPS sunar).
 
 ---
 
@@ -102,16 +147,16 @@ Docker istemiyorsan `deploy/birlikte-izle.service` dosyası systemd ile aynı i�
 
 ### GitHub ne işe yarar?
 
-GitHub Pages yalnızca **statik** dosya sunar; bu uygulama gerçek zamanlı kanal (SSE) ve
-sunucu tarafı oda durumu kullandığı için GitHub Pages'te çalışmaz. GitHub burada kod deposu ve
-**otomatik dağıtım tetikleyicisi** olarak kullanılır:
+GitHub Pages yalnızca **statik** dosya sunar. Bu uygulama iki şekilde yayınlanabilir:
 
-- `.github/workflows/deploy.yml` — `main` dalına push edince sunucu otomatik güncellenir
-  (Actions sırları tanımlıysa).
-- `deploy/auto-pull.sh` — zamanlanmış görevle (cron) aynı işi yapar; GitHub Actions
-  kullanmak istemeyenler içindir.
-
-Uygulamayı çalıştıran şey her durumda sunucudur.
+- **Sunucusuz (P2P) sürüm:** `npm run build:p2p` çıktısı GitHub Pages'te **doğrudan çalışır**
+  (yukarıdaki *Sunucusuz sürümü GitHub Pages'te yayınlama* bölümü). `.github/workflows/pages.yml`
+  bunu otomatik yapar.
+- **Sunucu sürümü:** GitHub Pages'te çalışmaz; çünkü oda durumu ve SSE sunucu tarafında tutulur.
+  Bu sürüm için Oracle VM (aşağıdaki rehber) gerekir. GitHub burada kod deposu ve **otomatik
+  dağıtım tetikleyicisi** olarak kullanılır:
+  `.github/workflows/deploy.yml` — `main` dalına push edince sunucu güncellenir (Actions sırları
+  tanımlıysa). `deploy/auto-pull.sh` aynı işi zamanlanmış görevle yapar.
 
 ---
 

@@ -7,6 +7,7 @@ import {
   MessageCircle,
   MonitorPlay,
   RefreshCw,
+  ShieldCheck,
   UserPlus,
   WifiOff,
 } from 'lucide-react'
@@ -28,6 +29,7 @@ import { RoomStateScreen, type RoomStateKind } from '@/components/room/RoomState
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Spinner'
 import { parseVideoUrl, providerDisplayName } from '@/lib/video'
+import { isP2P } from '@/lib/mode'
 import { shortRoomCode } from '@/lib/roomLink'
 import { saveRecentRoom } from '@/lib/recentRooms'
 import { cn } from '@/lib/utils'
@@ -193,6 +195,17 @@ function RoomReady({
         onInvite={() => setInviteOpen(true)}
         onLeave={handleLeave}
       />
+
+      {isP2P ? (
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-400">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500" />
+          <span>
+            <strong className="font-semibold text-zinc-300">Sunucusuz mod:</strong> bağlantı doğrudan
+            tarayıcılar arasında kurulur. Oda ve mesajlar kalıcı değildir; iki taraf da çıktığında oda
+            sona erer. İkiniz de aynı anda çevrimiçi olmalısınız.
+          </span>
+        </div>
+      ) : null}
 
       {connectionStatus !== 'online' ? (
         <div

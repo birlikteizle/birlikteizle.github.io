@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { AppUser } from '@/types'
 import { ApiError, api } from '@/lib/api'
+import { isP2P } from '@/lib/mode'
 import { clearSession, readSession, writeSession } from '@/lib/session'
 import { closeAllChannels } from '@/lib/roomChannel'
 
@@ -25,6 +26,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+/** Sunucusuz modda kimlik tamamen bu tarayıcıda üretilir. */
+function createLocalUser(displayName: string): AppUser {
+  const name = displayName.trim().slice(0, 40)
+  const uid =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `u-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return {
+    uid,
+    displayName: name,
+    photoURL: null,
+    email: null,
+    providerData: [{ providerId: 'local' }],
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,6 +57,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(session.user)
+
+    // Sunucusuz modda doğrulanacak bir sunucu yok; oturum yerel olarak geçerlidir.
+    if (isP2P) {
+      setServerReachable(true)
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
     const controller = new AbortController()
 
@@ -76,6 +101,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSigningIn(true)
     setAuthError(null)
     try {
+      if (isP2P) {
+        const name = displayName.trim()
+        if (name.length < 1) throw new Error('Lütfen en az 1 karakterlik bir ad gir.')
+        const localUser = createLocalUser(name)
+        writeSession({ user: localUser, token: 'p2p' })
+        setUser(localUser)
+        setServerReachable(true)
+        return
+      }
+
       const result = await api.register(displayName)
       writeSession({ user: result.user, token: result.token })
       setUser(result.user)

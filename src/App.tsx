@@ -1,6 +1,15 @@
 import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import {
+  BrowserRouter,
+  HashRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom'
 import { RefreshCw, TriangleAlert } from 'lucide-react'
+import { isP2P } from '@/lib/mode'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ConnectionProvider } from '@/context/ConnectionContext'
 import { ToastProvider } from '@/context/ToastContext'
@@ -14,12 +23,16 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 export function App() {
+  // Sunucusuz modda GitHub Pages bilinmeyen yollar için 404 döndürdüğünden
+  // yönlendirme hash üzerinden yapılır.
+  const Router = isP2P ? HashRouter : BrowserRouter
+
   return (
     <AppErrorBoundary>
       <ToastProvider>
-        <BrowserRouter>
+        <Router>
           <AppRoot />
-        </BrowserRouter>
+        </Router>
       </ToastProvider>
     </AppErrorBoundary>
   )

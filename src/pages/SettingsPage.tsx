@@ -23,6 +23,7 @@ import { PageShell } from '@/components/layout/PageShell'
 import { Avatar, PresenceDot } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { apiBaseUrl } from '@/lib/api'
+import { isP2P } from '@/lib/mode'
 import { formatRelative } from '@/lib/format'
 import { providerDisplayName } from '@/lib/video'
 import { shortRoomCode } from '@/lib/roomLink'
@@ -141,7 +142,9 @@ export function SettingsPage() {
                   status={status === 'online' ? 'online' : status === 'offline' ? 'offline' : 'reconnecting'}
                 />
                 {status === 'online'
-                  ? 'Sunucuya bağlı'
+                  ? isP2P
+                    ? 'Bağlantı hazır'
+                    : 'Sunucuya bağlı'
                   : status === 'offline'
                     ? 'Çevrimdışı'
                     : 'Yeniden bağlanıyor'}
@@ -230,15 +233,21 @@ export function SettingsPage() {
           <dl className="mt-4 space-y-2.5 text-[11.5px]">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.05] pb-2.5">
               <dt className="text-zinc-500">Sunucu adresi</dt>
-              <dd className="font-mono text-zinc-300">{apiBaseUrl() || window.location.origin}</dd>
+              <dd className="font-mono text-zinc-300">
+                {isP2P ? 'Yok · doğrudan tarayıcılar arası' : apiBaseUrl() || window.location.origin}
+              </dd>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.05] pb-2.5">
               <dt className="text-zinc-500">Gerçek zamanlı kanal</dt>
-              <dd className="text-zinc-300">SSE · sunucu zaman damgası</dd>
+              <dd className="text-zinc-300">
+                {isP2P ? 'WebRTC · P2P veri kanalı' : 'SSE · sunucu zaman damgası'}
+              </dd>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.05] pb-2.5">
               <dt className="text-zinc-500">Durum deposu</dt>
-              <dd className="text-zinc-300">.data/state.json</dd>
+              <dd className="text-zinc-300">
+                {isP2P ? 'Tarayıcı belleği (kalıcı değil)' : '.data/state.json'}
+              </dd>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <dt className="text-zinc-500">Ortam</dt>
@@ -249,8 +258,9 @@ export function SettingsPage() {
           <div className="mt-4 flex items-start gap-2 rounded-xl border border-sky-400/10 bg-sky-400/[0.04] px-3 py-2.5 text-[10.5px] leading-relaxed text-sky-200/70">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <p>
-              Oda durumu, mesajlar ve oynatma konumu kendi sunucunda tutulur. Böylece ek hesap ya
-              da dış servis kurulumu gerekmeden iki kişi aynı odada senkron izleyebilir.
+              {isP2P
+                ? 'Oda durumu ve mesajlar yalnızca tarayıcı belleğinde tutulur; sunucu yoktur. İki taraf da bağlantıyı kestiğinde oda sona erer.'
+                : 'Oda durumu, mesajlar ve oynatma konumu kendi sunucunda tutulur. Böylece ek hesap ya da dış servis kurulumu gerekmeden iki kişi aynı odada senkron izleyebilir.'}
             </p>
           </div>
         </section>
