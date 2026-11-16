@@ -40,6 +40,10 @@ ve medya **doğrudan tarayıcılar arasında** taşınır, hiçbir sunucudan ge�
 3. `main` dalına her push'ta `.github/workflows/pages.yml` çalışır ve site yayınlanır.
 4. Adres: `https://<KULLANICI>.github.io/<DEPO>/`
 
+> **Kısa adres:** Depoyu `<kullanıcıadı>.github.io` olarak adlandırırsan (ör. `birlikteizle.github.io`),
+> site kök adreste yayınlanır: `https://<kullanıcıadı>.github.io/`. Sonunda depo adı tekrarlanmaz.
+> Bu depo için güncel adres: **https://birlikteizle.github.io/**
+
 Yerelde denemek için:
 
 ```powershell
