@@ -1,0 +1,42 @@
+# Derleme ve çalıştırma için gereksiz olanlar
+node_modules
+dist
+dist-ssr
+.data
+logs
+coverage
+
+# Yerel ortam ve sırlar
+.env
+.env.local
+.env.*.local
+
+# Firebase (artık kullanılmıyor)
+.firebase
+firebase.json
+.firebaserc.example
+database.rules.json
+database-debug.log
+firebase-debug.log
+ui-debug.log
+
+# Editör / işletim sistemi
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Testler ve yardımcı betikler (çalışma zamanında gerekmez)
+tests
+scripts
+*.test.ts
+vitest*.config.ts
+
+# GitHub
+.github
+
+# Belgeler
+README.md
+deploy

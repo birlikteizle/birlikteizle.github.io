@@ -1,0 +1,36 @@
+# 7/24 çalışan kurulum.
+#
+#   docker compose up -d --build     → başlat / güncelle
+#   docker compose logs -f           → günlükleri izle
+#   docker compose down              → durdur
+#
+# `restart: unless-stopped` sayesinde sunucu çökse de, makine yeniden başlasa da
+# kendiliğinden ayağa kalkar.
+
+services:
+  app:
+    build: .
+    image: birlikte-izle:latest
+    container_name: birlikte-izle
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: "8787"
+      NOTIFY_HOST: "0.0.0.0"
+      ROOM_TTL_DAYS: "30"
+    volumes:
+      # Oda/mesaj durumu kalıcı olsun diye ana makinedeki ./data klasörüne bağlanır.
+      - ./data:/app/.data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

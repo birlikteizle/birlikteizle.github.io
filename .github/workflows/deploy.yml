@@ -1,0 +1,55 @@
+# Sunucuya otomatik dağıtım.
+#
+# GitHub'a her push yaptığında sunucu güncellenir: kod çekilir, imaj yeniden
+# derlenir, uygulama yeniden başlatılır. Böylece "bilgisayarını açmadan" bile
+# sitede güncelleme yapabilirsin.
+#
+# Kurulum: Depo → Settings → Secrets and variables → Actions → New repository secret
+#   SSH_HOST  → sunucunun genel IP adresi
+#   SSH_USER  → ubuntu
+#   SSH_KEY   → SSH özel anahtarının tamamı (BEGIN ... END satırları dahil)
+#
+# Sırlar tanımlı değilse bu iş akışı hata vermez, yalnızca atlanır.
+
+name: Sunucuya dağıt
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sırlar tanımlı mı?
+        id: check
+        run: |
+          if [ -n "${{ secrets.SSH_HOST }}" ] && [ -n "${{ secrets.SSH_KEY }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Dağıtım atlandı::SSH_HOST / SSH_KEY sırları tanımlı değil."
+          fi
+
+      - name: Uzak sunucuda güncelle
+        if: steps.check.outputs.ready == 'true'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          command_timeout: 20m
+          script_stop: true
+          script: |
+            set -e
+            cd "$HOME/birlikte-izle"
+            git fetch --all --prune
+            git reset --hard "origin/main"
+            docker compose up -d --build
+            docker image prune -f
+            docker compose ps

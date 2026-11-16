@@ -1,0 +1,26 @@
+# Opsiyonel: alan adı + otomatik HTTPS (Let's Encrypt) katmanı.
+#
+# Kullanım (proje kökünde):
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+#
+# Önce deploy/Caddyfile içindeki alan adını kendi alan adınla değiştir ve DNS'te
+# A kaydını sunucunun genel IP'sine yönlendir. Caddy sertifikayı kendisi alır.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: birlikte-izle-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

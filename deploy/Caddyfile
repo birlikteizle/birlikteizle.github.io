@@ -1,0 +1,11 @@
+# Alan adını kendi adresinle değiştir (DNS'te A kaydı sunucunun genel IP'sine bakmalı).
+# Caddy, Let's Encrypt sertifikasını otomatik alır ve yeniler.
+
+izle.ornek.com {
+	encode gzip
+
+	# SSE (gerçek zamanlı kanal) akışı için tamponlamayı kapat.
+	reverse_proxy app:8787 {
+		flush_interval -1
+	}
+}

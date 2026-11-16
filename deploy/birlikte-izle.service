@@ -1,0 +1,43 @@
+# Docker kullanmak istemeyenler için: doğrudan Node ile 7/24 çalıştırma.
+#
+# Kurulum:
+#   1) Projeyi /opt/birlikte-izle altına kopyala ve derle:
+#        sudo mkdir -p /opt/birlikte-izle
+#        sudo cp -r ./* /opt/birlikte-izle/
+#        cd /opt/birlikte-izle && sudo npm ci && sudo npm run build
+#   2) Bu dosyayı yerine kopyala:
+#        sudo cp deploy/birlikte-izle.service /etc/systemd/system/
+#   3) Etkinleştir:
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now birlikte-izle
+#        sudo systemctl status birlikte-izle
+#
+# Güncelleme: dosyaları kopyaladıktan sonra `sudo systemctl restart birlikte-izle`.
+
+[Unit]
+Description=Birlikte Izle (senkron video izleme sunucusu)
+Documentation=file:///opt/birlikte-izle/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=birlikte
+Group=birlikte
+WorkingDirectory=/opt/birlikte-izle
+Environment=NODE_ENV=production
+Environment=PORT=8787
+Environment=NOTIFY_HOST=0.0.0.0
+Environment=ROOM_TTL_DAYS=30
+ExecStart=/usr/bin/node server/index.mjs
+Restart=always
+RestartSec=3
+# Sunucu yalnızca .data klasörüne yazar.
+ReadWritePaths=/opt/birlikte-izle/.data
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
