@@ -8,6 +8,7 @@ import {
   supportsCamera,
   supportsScreen,
 } from '@/lib/mediaCapture'
+import { watchRemoteStream } from '@/lib/remoteStream'
 
 /**
  * Sunucu modu yayını: el sıkışma sinyalleri SSE kanalından geçer, medya
@@ -37,6 +38,7 @@ export function useScreenShareServer(
   const peerRef = useRef<RTCPeerConnection | null>(null)
   const videoSenderRef = useRef<RTCRtpSender | null>(null)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
+  const stopWatchRef = useRef<(() => void) | null>(null)
 
   const iceServers = useRef<RTCIceServer[]>(buildIceServers())
 
@@ -56,6 +58,18 @@ export function useScreenShareServer(
     }
   }, [])
 
+  /** İzleyici tarafını temizler (yayın bittiğinde ya da akış öldüğünde). */
+  const clearRemote = useCallback(() => {
+    stopWatchRef.current?.()
+    stopWatchRef.current = null
+    closePeer()
+    setRemoteStream(null)
+    setRole('idle')
+    setSharerName(null)
+    setKind(null)
+    setError(null)
+  }, [closePeer])
+
   const createPeer = useCallback(
     (mode: 'send' | 'receive') => {
       const peer = new RTCPeerConnection({ iceServers: iceServers.current })
@@ -66,7 +80,15 @@ export function useScreenShareServer(
 
       peer.ontrack = (event) => {
         const [stream] = event.streams
-        if (stream) setRemoteStream(stream)
+        if (!stream) return
+        setRemoteStream(stream)
+
+        // Yayıncı durdurursa/bağlantı koparsa akış ölür; kendiliğinden temizle.
+        stopWatchRef.current?.()
+        stopWatchRef.current = watchRemoteStream(stream, () => {
+          stopWatchRef.current = null
+          clearRemote()
+        })
       }
 
       peer.onconnectionstatechange = () => {
@@ -268,14 +290,9 @@ export function useScreenShareServer(
   useEffect(() => {
     return on('screen-stop', () => {
       if (roleRef.current === 'sharing') return
-      closePeer()
-      setRemoteStream(null)
-      setRole('idle')
-      setSharerName(null)
-      setKind(null)
-      setError(null)
+      clearRemote()
     })
-  }, [closePeer, on])
+  }, [clearRemote, on])
 
   useEffect(() => {
     return () => {

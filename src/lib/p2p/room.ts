@@ -77,6 +77,7 @@ type Wire =
   | { t: 'msg'; message: ChatMessage }
   | { t: 'hist'; messages: ChatMessage[] }
   | { t: 'vs'; uid: string; name: string; mic: boolean; cam: boolean }
+  | { t: 'scr'; sharing: boolean; name: string }
   | { t: 'bye'; uid: string }
 
 export type P2PEvent =
@@ -86,6 +87,7 @@ export type P2PEvent =
   | { type: 'history'; messages: ChatMessage[] }
   | { type: 'voice-stream'; stream: MediaStream; peerId: string; video: boolean }
   | { type: 'voice-gone'; peerId: string }
+  | { type: 'screen-state'; sharing: boolean; name: string; peerId: string }
   | { type: 'voice-state'; uid: string; name: string; mic: boolean; cam: boolean }
   | { type: 'bye'; uid: string }
   | { type: 'peers'; peerIds: string[] }
@@ -185,6 +187,14 @@ class P2PRoom {
           cam: data.cam,
         })
         break
+      case 'scr':
+        this.emit({
+          type: 'screen-state',
+          sharing: data.sharing,
+          name: data.name,
+          peerId,
+        })
+        break
       case 'bye':
         this.emit({ type: 'bye', uid: data.uid })
         break
@@ -265,6 +275,11 @@ class P2PRoom {
   /** Mikrofon/kamera durumunu odaya duyurur. */
   sendVoiceState(uid: string, name: string, mic: boolean, cam: boolean): void {
     void this.action.send({ t: 'vs', uid, name, mic, cam }).catch(() => undefined)
+  }
+
+  /** Ekran paylaşımının başladığını/bitiğini duyurur. */
+  sendScreenState(sharing: boolean, name: string): void {
+    void this.action.send({ t: 'scr', sharing, name }).catch(() => undefined)
   }
 
   /** Sesli sohbetten ayrıldığımızı duyurur. */

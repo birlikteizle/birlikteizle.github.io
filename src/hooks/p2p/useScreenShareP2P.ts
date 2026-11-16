@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { retainP2PRoom } from '@/lib/p2p/room'
 import type { BroadcastKind, ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
 import { captureBroadcast, captureCamera, broadcastErrorMessage, supportsCamera, supportsScreen } from '@/lib/mediaCapture'
+import { watchRemoteStream } from '@/lib/remoteStream'
 
 /**
  * Sunucusuz (P2P) yayın. Trystero medya akışını doğrudan eşler arasında kurar.
@@ -28,6 +29,19 @@ export function useScreenShareP2P(
   const roomRef = useRef<ReturnType<typeof retainP2PRoom>['room'] | null>(null)
 
   const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('environment')
+  /** Uzak yayını gönderen eşin kimliği (eş ayrılınca temizlemek için). */
+  const remotePeerRef = useRef<string | null>(null)
+  const stopWatchRef = useRef<(() => void) | null>(null)
+
+  const clearRemote = useCallback(() => {
+    stopWatchRef.current?.()
+    stopWatchRef.current = null
+    remotePeerRef.current = null
+    setRemoteStream(null)
+    setRole('idle')
+    setSharerName(null)
+    setKind(null)
+  }, [])
 
   useEffect(() => {
     const { room, release } = retainP2PRoom(roomId)
@@ -36,28 +50,53 @@ export function useScreenShareP2P(
     const unsubscribe = room.subscribe((event) => {
       if (event.type === 'stream') {
         if (roleRef.current === 'sharing') return
+        remotePeerRef.current = event.peerId
         setRemoteStream(event.stream)
         setRole('watching')
         setError(null)
-      } else if (event.type === 'peers' && event.peerIds.length === 0) {
-        if (roleRef.current === 'watching') {
-          setRemoteStream(null)
-          setRole('idle')
-          setSharerName(null)
+
+        // Yayıncı durdurursa/bağlantı koparsa akış ölür; kendiliğinden temizle.
+        stopWatchRef.current?.()
+        stopWatchRef.current = watchRemoteStream(event.stream, clearRemote)
+      } else if (event.type === 'screen-state') {
+        // Açık bir "durdur" bildirimi geldi: hemen temizle.
+        if (roleRef.current === 'sharing') return
+        if (!event.sharing) {
+          clearRemote()
+        } else {
+          remotePeerRef.current = event.peerId
+          setRole('watching')
+          setSharerName(event.name || 'Katılımcı')
+          setKind('screen')
+          setError(null)
+        }
+      } else if (event.type === 'voice-gone') {
+        if (remotePeerRef.current === event.peerId) clearRemote()
+      } else if (event.type === 'peers') {
+        // Yayıncı odadan çıktıysa izlemeyi bırak.
+        if (remotePeerRef.current && !event.peerIds.includes(remotePeerRef.current)) {
+          clearRemote()
+        }
+        // Yeni katılan biri varsa yayında olduğumuzu hatırlat.
+        if (roleRef.current === 'sharing' && event.peerIds.length > 0) {
+          room.sendScreenState(true, displayName)
         }
       }
     })
 
     return () => {
       unsubscribe()
+      stopWatchRef.current?.()
+      stopWatchRef.current = null
       const stream = localStreamRef.current
       for (const track of stream?.getTracks() ?? []) track.stop()
       localStreamRef.current = null
       room.removeStream()
+      room.sendScreenState(false, '')
       release()
       roomRef.current = null
     }
-  }, [roomId])
+  }, [clearRemote, displayName, roomId])
 
   const stopSharing = useCallback(() => {
     const stream = localStreamRef.current
@@ -68,6 +107,8 @@ export function useScreenShareP2P(
     }
     setLocalStream(null)
     roomRef.current?.removeStream()
+    // Karşı tarafta ölü görüntü kalmasın diye "durdur" bildirimi gönder.
+    roomRef.current?.sendScreenState(false, '')
     setRole('idle')
     setSharerName(null)
     setKind(null)
@@ -106,6 +147,8 @@ export function useScreenShareP2P(
           return
         }
         await room.addStream(stream)
+        // Karşı taraf yayının başladığını hemen görsün.
+        room.sendScreenState(true, displayName)
       } catch (caught) {
         setError(broadcastErrorMessage(caught, mode))
         localStreamRef.current = null
