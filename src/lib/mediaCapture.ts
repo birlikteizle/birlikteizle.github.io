@@ -90,6 +90,42 @@ export function broadcastErrorMessage(error: unknown, mode: BroadcastKind): stri
   }
 }
 
+/**
+ * Tarayıcı yöntemi "var gibi" gösterip yine de başarısız olduğunda (ör. bazı
+ * mobil sürümler `getDisplayMedia` tanımlı olmasına rağmen her çağrıda hata
+ * verir) bu hatayı tanır; bu durumda kameraya düşülür.
+ */
+export function isUnsupportedMediaError(error: unknown): boolean {
+  const name = (error as { name?: string })?.name ?? ''
+  return name === 'NotSupportedError' || name === 'TypeError'
+}
+
+export interface CaptureResult {
+  stream: MediaStream
+  kind: BroadcastKind
+}
+
+/**
+ * İstenen türü yakalamayı dener; ekran desteklenmiyorsa sessizce kameraya düşer.
+ * Böylece destek henüz oturmamış cihazlarda (ör. iOS 27'nin yeni ekran paylaşımı)
+ * yayın yine de başlar.
+ */
+export async function captureBroadcast(
+  requested: BroadcastKind,
+  options: CaptureCameraOptions = {},
+): Promise<CaptureResult> {
+  if (requested === 'camera' || !supportsScreen()) {
+    return { stream: await captureCamera(options), kind: 'camera' }
+  }
+
+  try {
+    return { stream: await captureScreen(), kind: 'screen' }
+  } catch (error) {
+    if (!isUnsupportedMediaError(error)) throw error
+    return { stream: await captureCamera(options), kind: 'camera' }
+  }
+}
+
 /** Cihaz için önerilen yayın türü. */
 export function preferredBroadcastKind(): BroadcastKind {
   return supportsScreen() ? 'screen' : 'camera'

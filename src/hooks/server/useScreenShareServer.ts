@@ -3,8 +3,8 @@ import { useRoomSignals } from '@/hooks/useRoomSignals'
 import type { BroadcastKind, ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
 import {
   broadcastErrorMessage,
+  captureBroadcast,
   captureCamera,
-  captureScreen,
   supportsCamera,
   supportsScreen,
 } from '@/lib/mediaCapture'
@@ -120,23 +120,25 @@ export function useScreenShareServer(
       const mode: BroadcastKind = requested === 'screen' && supportsScreen() ? 'screen' : 'camera'
 
       try {
-        const stream =
-          mode === 'screen'
-            ? await captureScreen()
-            : await captureCamera({ facingMode: cameraFacing, withAudio: true })
+        const { stream, kind: actualKind } = await captureBroadcast(mode, {
+          facingMode: cameraFacing,
+          withAudio: true,
+        })
 
         localStreamRef.current = stream
         setLocalStream(stream)
         setRole('sharing')
         setSharerName(displayName)
-        setKind(mode)
+        setKind(actualKind)
         setMicEnabled(stream.getAudioTracks().length > 0)
 
         for (const track of stream.getTracks()) {
-          if (track.kind === 'video' && mode === 'screen') track.onended = () => stopSharing()
+          if (track.kind === 'video' && actualKind === 'screen') {
+            track.onended = () => stopSharing()
+          }
         }
 
-        await send('screen-start', { name: displayName, kind: mode })
+        await send('screen-start', { name: displayName, kind: actualKind })
 
         const peer = createPeer('send')
         const offer = await peer.createOffer()

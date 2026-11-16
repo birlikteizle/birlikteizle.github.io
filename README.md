@@ -101,14 +101,40 @@ tarafından aşılamaz. Bu tür kaynaklar için **ekran paylaşımı modu** kull
 
 - **Masaüstünde:** "Ekran/sekme paylaş" → açılan pencerede filmi oynatan sekmeyi seç (sekme
   paylaşımında ses de gelir).
-- **Telefonda:** Tarayıcılar web sayfasının ekranı yakalamasına izin **vermez**; bu yüzden odada
-  telefona özel **"Kamera yayını"** düğmesi görünür. Telefonu ekrana/TV'ye çevirip yayın açabilir,
-  mikrofonu kapatabilir, ön/arka kamerayı değiştirebilirsin.
+- **Telefonda:** Tarayıcılar web sayfasının ekranı yakalamasına izin **vermez** (aşağıdaki nota
+  bak); bu yüzden odada telefona özel **"Kamera yayını"** düğmesi görünür. Telefonu ekrana/TV'ye
+  çevirip yayın açabilir, mikrofonu kapatabilir, ön/arka kamerayı değiştirebilirsin.
+  Ekran paylaşımı denenip desteklenmediği anlaşılırsa uygulama **kendiliğinden kameraya geçer**.
 - Görüntü sunucudan geçmez; iki tarayıcı arasında doğrudan kurulur (P2P).
 - **HTTPS gerekir.** Tarayıcılar kamera ve ekran yakalamayı yalnızca güvenli bağlamda (https veya
   localhost) verir. GitHub Pages ve HTTPS'li kurulumlar bu şartı sağlar.
 - Kısıtlı ağlarda (simetrik NAT, kurumsal güvenlik duvarı) STUN yetmez; `VITE_TURN_*` değişkenleriyle
   bir TURN sunucusu tanımlanır.
+
+### Telefonlar neden ekran paylaşamıyor?
+
+Kısa cevap: **tarayıcı üreticileri bilinçli olarak izin vermiyor.** Sebepler:
+
+1. **İzin modeli farkı.** Masaüstünde tarayıcı kendi seçicisini açar ve "hangi sekmeyi/pencereyi
+   paylaşacaksın?" diye sorar — yani kullanıcı küçük bir parçayı seçer. Telefonda tek bir ekran
+   vardır: paylaşmak, bildirimler, mesajlar, banka uygulamaları ve şifreler dahil **tüm telefonu**
+   paylaşmak demektir. Tarayıcılar bu kadar geniş bir yetkiyi web sayfasına vermiyor.
+2. **Platform kuralı.** Telefonda ekran kaydı işletim sisteminin yetkisindedir ve yalnızca **kurulu
+   uygulamalara** verilir: iOS'ta ReplayKit, Android'de MediaProjection (her oturum için ayrı onay).
+   Web sayfalarının bu API'ye erişimi yok.
+3. **Teknik geçmiş.** Chrome Android 72-88 sürümlerinde `getDisplayMedia` "tanımlı" göründü ama her
+   çağrı `NotAllowedError` ile başarısız oldu (Chromium hatası 40418135); sonra tamamen kaldırıldı.
+   Bu yüzden uygulama yalnızca "yöntem var mı" diye bakmaz; **çağrı gerçekten çalışmazsa kameraya
+   geçer**.
+4. **Kötüye kullanım ve DRM.** Tüm ekranı yakalayabilmek, telefonda Netflix gibi uygulamaların
+   korumasını da anlamsız kılardı; platformlar bunu özellikle engelliyor.
+5. **Deneyim ve pil.** Tek ekranlı cihazda ekranı paylaşan kişi telefonunu kullanamaz hale gelir ve
+   sürekli kodlama pili hızla tüketir.
+
+Güncel durum (Kasım 2026): Chrome/Firefox/Samsung Internet **Android'de desteklemiyor**. iOS'ta
+Safari 27 (Eylül 2026) ile tarayıcı veri tabanları yeni yeni "destekli" olarak işaretlemeye başladı,
+ancak Apple bunu duyurmadı ve davranışı belgelenmedi. Uygulama bu yüzden yeteneği **çalışma anında**
+ölçer: destek varsa "Ekran/sekme paylaş" düğmesi kendiliğinden görünür, yoksa kamera yayını sunulur.
 
 ---
 

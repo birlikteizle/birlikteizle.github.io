@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { retainP2PRoom } from '@/lib/p2p/room'
 import type { BroadcastKind, ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
-import { broadcastErrorMessage, captureCamera, captureScreen, supportsCamera, supportsScreen } from '@/lib/mediaCapture'
+import { captureBroadcast, captureCamera, broadcastErrorMessage, supportsCamera, supportsScreen } from '@/lib/mediaCapture'
 
 /**
  * Sunucusuz (P2P) yayın. Trystero medya akışını doğrudan eşler arasında kurar.
@@ -81,21 +81,22 @@ export function useScreenShareP2P(
       const mode: BroadcastKind = requested === 'screen' && supportsScreen() ? 'screen' : 'camera'
 
       try {
-        const stream =
-          mode === 'screen'
-            ? await captureScreen()
-            : await captureCamera({ facingMode: cameraFacing, withAudio: true })
+        const { stream, kind: actualKind } = await captureBroadcast(mode, {
+          facingMode: cameraFacing,
+          withAudio: true,
+        })
 
         localStreamRef.current = stream
         setLocalStream(stream)
         setRole('sharing')
         setSharerName(displayName)
-        setKind(mode)
+        setKind(actualKind)
         setMicEnabled(stream.getAudioTracks().length > 0)
 
         for (const track of stream.getTracks()) {
-          // Ekran paylaşımında tarayıcı kendi "durdur" düğmesini kullanabilir.
-          if (track.kind === 'video' && mode === 'screen') track.onended = () => stopSharing()
+          if (track.kind === 'video' && actualKind === 'screen') {
+            track.onended = () => stopSharing()
+          }
         }
 
         const room = roomRef.current
