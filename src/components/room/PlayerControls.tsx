@@ -28,6 +28,8 @@ interface PlayerControlsProps {
   isFullscreen: boolean
   canControl: boolean
   syncStatus: SyncStatus
+  /** Kontrol çubuğu görünür mü? (Hareketsizlikte gizlenir.) */
+  visible?: boolean
   subtitlesAvailable: boolean
   subtitlesEnabled: boolean
   onSubtitleClick: () => void
@@ -91,6 +93,7 @@ export function PlayerControls({
   isFullscreen,
   canControl,
   syncStatus,
+  visible = true,
   subtitlesAvailable,
   subtitlesEnabled,
   onSubtitleClick,
@@ -107,7 +110,12 @@ export function PlayerControls({
   const effectiveVolume = muted ? 0 : volume
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-2.5 pb-2 pt-10 sm:px-4 sm:pb-3">
+    <div
+      className={cn(
+        'absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-2.5 pb-2 pt-10 transition-opacity duration-300 sm:px-4 sm:pb-3',
+        visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+      )}
+    >
       <RangeSlider
         value={currentTime}
         max={duration}

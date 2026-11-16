@@ -31,7 +31,7 @@ import { useRoomSignals } from '@/hooks/useRoomSignals'
 import { formatClock } from '@/lib/format'
 import { findActiveCue, parseSubtitles, type SubtitleCue } from '@/lib/subtitles'
 import { parseVideoUrl } from '@/lib/video'
-import { clamp, isEditableTarget, safeExternalUrl, safeLocalStorageGet, safeLocalStorageSet } from '@/lib/utils'
+import { clamp, cn, isEditableTarget, safeExternalUrl, safeLocalStorageGet, safeLocalStorageSet } from '@/lib/utils'
 
 interface VideoStageProps {
   roomId: string
@@ -89,6 +89,8 @@ export function VideoStage({
   const [subtitleName, setSubtitleName] = useState('')
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
+  /** Kontrol çubuğu görünür mü? Hareketsizlikte gizlenir. */
+  const [controlsVisible, setControlsVisible] = useState(true)
 
   const subtitleInputRef = useRef<HTMLInputElement>(null)
 
@@ -109,6 +111,7 @@ export function VideoStage({
   const adjustingTimerRef = useRef<number | null>(null)
   const autoplayTimerRef = useRef<number | null>(null)
   const countdownTimerRef = useRef<number | null>(null)
+  const controlsHideTimerRef = useRef<number | null>(null)
   const publishCommandRef = useRef<(patch: PlaybackCommand) => Promise<void>>(async () => undefined)
 
   const parsedSource = useMemo(
@@ -400,6 +403,8 @@ export function VideoStage({
   }, [])
 
   const canControl = isOnline && Boolean(playable) && ready && !playerError && !sourceFailure && !isEmbed
+  /** Çubuk gizli mi? Gömülü sayfada her zaman görünür kalır. */
+  const controlsHidden = !isEmbed && !controlsVisible
   const activeCue = useMemo(
     () => (subtitlesEnabled ? findActiveCue(subtitleCues, currentTime) : null),
     [subtitlesEnabled, subtitleCues, currentTime],
@@ -599,6 +604,61 @@ export function VideoStage({
     runCountdown(COUNTDOWN_SECONDS)
   }, [runCountdown, sendSignal])
 
+  /* ---------------------------------------------------------------- */
+  /* Kontrollerin hareketsizlikte gizlenmesi (YouTube/Netflix davranışı) */
+  /* ---------------------------------------------------------------- */
+
+  /** Hareketsizlik süresi: bu kadar dokunulmazsa çubuk kaybolur. */
+  const CONTROLS_IDLE_MS = 3000
+
+  const scheduleControlsHide = useCallback(() => {
+    if (controlsHideTimerRef.current) window.clearTimeout(controlsHideTimerRef.current)
+    controlsHideTimerRef.current = null
+    setControlsVisible(true)
+
+    // Video duraklatılmışken çubuk açık kalır; yalnızca oynarken gizlenir.
+    if (playbackRef.current?.status !== 'playing') return
+
+    controlsHideTimerRef.current = window.setTimeout(() => {
+      controlsHideTimerRef.current = null
+      setControlsVisible(false)
+    }, CONTROLS_IDLE_MS)
+  }, [])
+
+  useEffect(() => {
+    scheduleControlsHide()
+  }, [playback?.status, scheduleControlsHide])
+
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+
+    // Gömülü sayfada (iframe) fare olayları dış sayfaya ulaşmaz; orada çubuk
+    // sürekli açık kalır, aksi halde geri getirilemezdi.
+    if (isEmbed) return
+
+    const handleActivity = () => scheduleControlsHide()
+    const pointerEvents = ['mousemove', 'pointerdown', 'touchstart', 'touchmove', 'wheel'] as const
+
+    for (const name of pointerEvents) {
+      stage.addEventListener(name, handleActivity, { passive: true })
+    }
+    window.addEventListener('keydown', handleActivity)
+
+    return () => {
+      for (const name of pointerEvents) {
+        stage.removeEventListener(name, handleActivity)
+      }
+      window.removeEventListener('keydown', handleActivity)
+    }
+  }, [isEmbed, scheduleControlsHide])
+
+  useEffect(() => {
+    return () => {
+      if (controlsHideTimerRef.current) window.clearTimeout(controlsHideTimerRef.current)
+    }
+  }, [])
+
   const handleRemoveSubtitles = useCallback(() => {
     setSubtitleCues([])
     setSubtitleName('')
@@ -683,7 +743,10 @@ export function VideoStage({
     <section className="min-w-0">
       <div
         ref={stageRef}
-        className="player-stage player-surface relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black shadow-panel"
+        className={cn(
+          'player-stage player-surface relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black shadow-panel',
+          controlsHidden && 'cursor-none',
+        )}
       >
         <div className="player-frame relative aspect-video w-full">
           {playable && !fatalError ? (
@@ -694,12 +757,20 @@ export function VideoStage({
             <button
               type="button"
               onClick={handleTogglePlay}
-              className="absolute inset-0 z-10 cursor-pointer focus-visible:outline-none"
+              className={cn(
+                'absolute inset-0 z-10 focus-visible:outline-none',
+                controlsHidden ? 'cursor-none' : 'cursor-pointer',
+              )}
               aria-label={playback?.status === 'playing' ? 'Videoyu duraklat' : 'Videoyu oynat'}
             />
           ) : null}
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-3">
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent p-3 transition-opacity duration-300',
+              controlsHidden && 'opacity-0',
+            )}
+          >
             {playable ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/40 px-2.5 py-1 text-[10px] font-medium text-white/80 backdrop-blur">
                 <MonitorPlay className="h-3 w-3" />
@@ -877,6 +948,7 @@ export function VideoStage({
               isFullscreen={isFullscreen}
               canControl={canControl}
               syncStatus={syncStatus}
+              visible={controlsVisible}
               subtitlesAvailable={subtitleCues.length > 0}
               subtitlesEnabled={subtitlesEnabled}
               onSubtitleClick={handleSubtitleClick}
