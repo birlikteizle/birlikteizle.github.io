@@ -11,15 +11,23 @@ interface InviteModalProps {
   open: boolean
   onClose: () => void
   roomId: string
-  partnerName: string | null
+  memberCount: number
+  capacity: number
 }
 
-export function InviteModal({ open, onClose, roomId, partnerName }: InviteModalProps) {
+export function InviteModal({
+  open,
+  onClose,
+  roomId,
+  memberCount,
+  capacity,
+}: InviteModalProps) {
   const { pushToast } = useToast()
   const [copied, setCopied] = useState(false)
   const [copying, setCopying] = useState(false)
 
-  const roomUrl = typeof window === 'undefined' ? '' : buildRoomUrl(roomId)
+  // Kapasite bağlantıya gömülür: sunucusuz modda katılan herkes aynı sınırı kullanır.
+  const roomUrl = typeof window === 'undefined' ? '' : buildRoomUrl(roomId, capacity)
   const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
   useEffect(() => {
@@ -67,8 +75,8 @@ export function InviteModal({ open, onClose, roomId, partnerName }: InviteModalP
     <Modal
       open={open}
       onClose={onClose}
-      title="Partnerini odaya davet et"
-      description="Odalar iki kişiliktir. Bağlantıyı yalnızca izlemesini istediğin kişiyle paylaş."
+      title="Arkadaşlarını odaya davet et"
+      description={`Oda ${capacity} kişilik. Bağlantıyı paylaş; kapasite dolduğunda yeni katılım engellenir.`}
       footer={
         <>
           {canNativeShare ? (
@@ -88,12 +96,13 @@ export function InviteModal({ open, onClose, roomId, partnerName }: InviteModalP
         <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5">
           <div className="flex items-center gap-2 text-[11px] text-zinc-400">
             <Users className="h-3.5 w-3.5 text-brand-300" />
-            {partnerName ? (
+            {memberCount > 1 ? (
               <span>
-                <span className="font-medium text-zinc-200">{partnerName}</span> zaten odada
+                Odada <span className="font-medium text-zinc-200">{memberCount} kişi</span> var ·{' '}
+                {Math.max(0, capacity - memberCount)} yer boş
               </span>
             ) : (
-              <span>İkinci kişi bekleniyor</span>
+              <span>Henüz başka katılımcı yok · {capacity - memberCount} yer boş</span>
             )}
           </div>
           <code className="rounded-md border border-white/[0.08] bg-night-950/70 px-2 py-1 font-mono text-[10px] text-zinc-400">

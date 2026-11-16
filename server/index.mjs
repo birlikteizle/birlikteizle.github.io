@@ -211,7 +211,7 @@ async function handleApi(req, res, url) {
     const user = requireUser(req)
     const body = await readJson(req)
     const source = body.source ?? null
-    const roomId = createRoom(state, user, source)
+    const roomId = createRoom(state, user, source, body.capacity)
     store.save()
     return sendJson(res, 201, { roomId })
   }
@@ -296,7 +296,12 @@ async function handleApi(req, res, url) {
         throw new RoomError('ROOM_CLOSED', 'Bu oda kapatılmış.', 410)
       }
       if (result.status === 'full') {
-        throw new RoomError('ROOM_FULL', 'Oda dolu. Yalnızca iki kişi izleyebilir.', 409)
+        const capacity = state.rooms[roomId]?.info?.capacity ?? 2
+        throw new RoomError(
+          'ROOM_FULL',
+          `Oda dolu. Bu odanın kapasitesi ${capacity} kişi.`,
+          409,
+        )
       }
       if (result.status === 'invalid') {
         throw new RoomError('INVALID_ROOM', 'Oda bağlantısı geçersiz.', 400)

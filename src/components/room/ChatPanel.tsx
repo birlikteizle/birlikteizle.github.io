@@ -30,8 +30,8 @@ interface ChatPanelProps {
   loading: boolean
   error: string | null
   onRetry: () => void
-  partnerName: string | null
-  partnerOnline: boolean
+  othersOnline: number
+  othersTotal: number
   className?: string
 }
 
@@ -60,8 +60,8 @@ export function ChatPanel({
   loading,
   error,
   onRetry,
-  partnerName,
-  partnerOnline,
+  othersOnline,
+  othersTotal,
   className,
 }: ChatPanelProps) {
   const { pushToast } = useToast()
@@ -171,20 +171,20 @@ export function ChatPanel({
           <div className="min-w-0">
             <h2 className="text-[13px] font-semibold text-zinc-100">Sohbet</h2>
             <p className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-              {partnerName ? (
+              {othersTotal > 0 ? (
                 <>
                   <span
                     className={cn(
                       'h-1.5 w-1.5 rounded-full',
-                      partnerOnline ? 'bg-emerald-400' : 'bg-zinc-600',
+                      othersOnline > 0 ? 'bg-emerald-400' : 'bg-zinc-600',
                     )}
                   />
                   <span className="truncate">
-                    {partnerName} {partnerOnline ? 'çevrimiçi' : 'çevrimdışı'}
+                    {othersTotal} katılımcı · {othersOnline} çevrimiçi
                   </span>
                 </>
               ) : (
-                'Partner bekleniyor'
+                'Katılımcı bekleniyor'
               )}
             </p>
           </div>

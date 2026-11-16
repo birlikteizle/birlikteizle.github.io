@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AppUser, RoomInfo, RoomMembers, RoomPresenceMap } from '@/types'
 import { isValidRoomId } from '@/lib/ids'
 import { retainP2PRoom, selfMember } from '@/lib/p2p/room'
+import { readRoomCapacityFromLocation } from '@/lib/roomLink'
 import type { RoomSessionResult, RoomSessionStatus } from '@/hooks/roomSessionTypes'
 
 /**
@@ -24,9 +25,10 @@ export function useRoomSessionP2P(
   const displayName = user.displayName
 
   const me = useMemo(() => selfMember(uid, displayName), [uid, displayName])
+  const capacity = useMemo(() => readRoomCapacityFromLocation(), [])
   const info = useMemo<RoomInfo>(
-    () => ({ createdBy: uid, createdAt: me.joinedAt, status: 'active' }),
-    [uid, me.joinedAt],
+    () => ({ createdBy: uid, createdAt: me.joinedAt, status: 'active', capacity }),
+    [uid, me.joinedAt, capacity],
   )
 
   const peersRef = useRef<string[]>([])

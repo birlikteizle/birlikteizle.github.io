@@ -130,7 +130,41 @@ const fullResponse = await fetch(`${base}/api/rooms/${roomId}/join`, {
   body: '{}',
 })
 assert(fullResponse.status === 409, `üçüncü kişi 409 almalı, gelen: ${fullResponse.status}`)
-step('Oda kapasitesi', '409 ROOM_FULL')
+step('Oda kapasitesi', '2 kişilik oda: 409 ROOM_FULL')
+
+// Kapasite ayarı: 3 kişilik oda üçüncüyü kabul eder, dördüncüyü reddeder
+const room3 = await call('/api/rooms', {
+  method: 'POST',
+  token: ali.token,
+  body: { capacity: 3 },
+})
+const joinTwo = await call(`/api/rooms/${room3.roomId}/join`, {
+  method: 'POST',
+  token: ayse.token,
+  body: {},
+})
+const joinThree = await call(`/api/rooms/${room3.roomId}/join`, {
+  method: 'POST',
+  token: third.token,
+  body: {},
+})
+assert(joinTwo.status === 'joined' && joinThree.status === 'joined', 'ilk üç kişi katılmalı')
+
+const fourth = await call('/api/auth/register', { method: 'POST', body: { displayName: 'Dördüncü' } })
+const denied = await fetch(`${base}/api/rooms/${room3.roomId}/join`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', authorization: `Bearer ${fourth.token}` },
+  body: '{}',
+})
+assert(denied.status === 409, `dördüncü kişi 409 almalı, gelen: ${denied.status}`)
+
+const capacitySnapshot = await call(`/api/rooms/${room3.roomId}`, { token: ali.token })
+assert(capacitySnapshot.info.capacity === 3, 'kapasite oda bilgisinde dönmeli')
+assert(
+  Object.keys(capacitySnapshot.members).length === 3,
+  'odada üç üye bulunmalı',
+)
+step('Ayarlanabilir kapasite', `3 kişilik oda: 3 kabul, 4. kişi reddedildi`)
 
 // Gömülü sayfa (iframe) kaynağı: "her siteden izleme" desteği
 const embedRoom = await call('/api/rooms', {

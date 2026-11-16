@@ -29,6 +29,10 @@ function normalizeState(raw) {
       continue
     }
     room.info = room.info && typeof room.info === 'object' ? room.info : {}
+    if (!Number.isFinite(Number(room.info.capacity)) || Number(room.info.capacity) < 2) {
+      // Eski kayıtlarda kapasite yoktu; iki kişilik davranış korunur.
+      room.info.capacity = 2
+    }
     room.members = room.members && typeof room.members === 'object' ? room.members : {}
     room.messages = Array.isArray(room.messages) ? room.messages.slice(-300) : []
     if (!room.playback || typeof room.playback !== 'object') {

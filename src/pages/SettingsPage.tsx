@@ -260,7 +260,7 @@ export function SettingsPage() {
             <p>
               {isP2P
                 ? 'Oda durumu ve mesajlar yalnızca tarayıcı belleğinde tutulur; sunucu yoktur. İki taraf da bağlantıyı kestiğinde oda sona erer.'
-                : 'Oda durumu, mesajlar ve oynatma konumu kendi sunucunda tutulur. Böylece ek hesap ya da dış servis kurulumu gerekmeden iki kişi aynı odada senkron izleyebilir.'}
+                : 'Oda durumu, mesajlar ve oynatma konumu kendi sunucunda tutulur. Böylece ek hesap ya da dış servis kurulumu gerekmeden herkes aynı odada senkron izleyebilir.'}
             </p>
           </div>
         </section>

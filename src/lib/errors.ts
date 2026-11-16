@@ -76,7 +76,7 @@ export function mapApiError(error: unknown): string {
       case 'NETWORK':
         return 'Sunucuya ulaşılamadı. Sunucunun çalıştığını ve aynı ağda olduğunu kontrol et.'
       case 'ROOM_FULL':
-        return 'Oda dolu. Bu odaya yalnızca iki kişi katılabilir.'
+        return typed.message || 'Oda dolu. Bu odanın kapasitesi doldu.'
       case 'ROOM_NOT_FOUND':
         return 'Oda bulunamadı. Davet bağlantısının doğru olduğundan emin ol.'
       case 'ROOM_CLOSED':

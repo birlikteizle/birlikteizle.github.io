@@ -31,7 +31,7 @@ const FEATURES = [
   },
   {
     icon: ShieldCheck,
-    title: 'İki kişilik özel oda',
+    title: 'Çok kişilik özel oda',
     description: 'Tahmin edilmesi imkânsız davet bağlantısı ve üye bazlı erişim.',
   },
 ]
@@ -164,7 +164,7 @@ export function LoginScreen() {
                 <LogoMark className="h-10 w-10" />
                 <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400">
                   <Users className="h-3.5 w-3.5 text-brand-300" />
-                  İki kişilik özel odalar
+                  İstediğin kadar kişilik odalar
                 </div>
               </div>
               <h2 className="text-2xl font-semibold text-zinc-50">Birlikte izlemeye başla</h2>

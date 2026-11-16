@@ -21,7 +21,7 @@ export function SiteFooter() {
       <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-[11px] text-zinc-600 sm:flex-row sm:px-6 lg:px-8">
         <p className="flex items-center gap-1.5">
           <Heart className="h-3 w-3 text-brand-400/70" />
-          Birlikte İzle — iki kişilik senkron izleme odaları
+          Birlikte İzle — senkron video izleme odaları
         </p>
         <p>
           DRM korumalı platformlar desteklenmez. Yalnızca gömülü oynatılabilen kaynaklar

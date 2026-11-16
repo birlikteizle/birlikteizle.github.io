@@ -29,6 +29,8 @@ import { PageShell } from '@/components/layout/PageShell'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { createRoom } from '@/services/rooms'
+import { CAPACITY_OPTIONS, DEFAULT_CAPACITY } from '@/lib/capacity'
+import { isP2P } from '@/lib/mode'
 import { mapApiError } from '@/lib/errors'
 import { formatRelative } from '@/lib/format'
 import { providerDisplayName, parseVideoUrl, type VideoParseFailure } from '@/lib/video'
@@ -44,7 +46,7 @@ const STEPS = [
   },
   {
     title: 'Daveti paylaş',
-    description: 'Tek tıkla kopyalanan bağlantıyı partnerine gönder.',
+    description: 'Tek tıkla kopyalanan bağlantıyı arkadaşlarına gönder.',
   },
   {
     title: 'Birlikte izleyin',
@@ -109,6 +111,7 @@ export function HomePage() {
 
   const [videoUrl, setVideoUrl] = useState('')
   const [videoFailure, setVideoFailure] = useState<VideoParseFailure | null>(null)
+  const [capacity, setCapacity] = useState<number>(DEFAULT_CAPACITY)
   const [creating, setCreating] = useState(false)
   const [inviteInput, setInviteInput] = useState('')
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -149,7 +152,7 @@ export function HomePage() {
 
     setCreating(true)
     try {
-      const roomId = await createRoom(user, source)
+      const roomId = await createRoom(user, source, capacity)
       saveRecentRoom({
         id: roomId,
         provider: source?.provider ?? 'none',
@@ -158,9 +161,10 @@ export function HomePage() {
       pushToast({
         kind: 'success',
         title: 'Oda oluşturuldu',
-        description: 'Davet bağlantısını paylaşarak partnerini beklemeye başlayabilirsin.',
+        description: `Kapasite ${capacity} kişi. Davet bağlantısını paylaşarak beklemeye başlayabilirsin.`,
       })
-      navigate(`/room/${roomId}`)
+      // Sunucusuz modda kapasite davet bağlantısıyla taşınır.
+      navigate(isP2P ? `/room/${roomId}?k=${capacity}` : `/room/${roomId}`)
     } catch (error) {
       pushToast({
         kind: 'error',
@@ -207,15 +211,15 @@ export function HomePage() {
       <section className="mx-auto max-w-3xl text-center">
         <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.7)]" />
-          İki kişilik gerçek zamanlı odalar
+          İstediğin kadar kişilik odalar
         </span>
         <h1 className="mt-5 font-display text-[34px] font-semibold leading-[1.08] tracking-tight text-zinc-50 sm:text-5xl lg:text-[56px]">
           Aynı ekranın karşısında
           <br className="hidden sm:block" /> <span className="text-gradient">gibi.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-zinc-400 sm:text-[15px]">
-          Bir bağlantı paylaş, aynı odaya girin. Video kontrolleri, zaman çizgisi ve sohbet iki
-          tarafta da anında senkronize olsun.
+          Bir bağlantı paylaş, aynı odaya girin. Video kontrolleri, zaman çizgisi ve sohbet herkeste
+          anında senkronize olsun.
         </p>
       </section>
 
@@ -242,12 +246,12 @@ export function HomePage() {
               </div>
               <p className="mt-5 font-display text-lg font-semibold text-zinc-100">İzleme alanı hazır</p>
               <p className="mt-1.5 max-w-md text-xs leading-relaxed text-zinc-500">
-                Bir bağlantı yapıştırıp odayı oluştur. Partnerin davet bağlantısıyla katıldığında
-                video iki ekranda aynı saniyede oynamaya başlar.
+                Bir bağlantı yapıştırıp odayı oluştur. Katılan herkes davet bağlantısıyla aynı anda
+                izlemeye başlar; kapasiteyi sen belirlersin.
               </p>
               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-black/20 px-3 py-1.5 text-[11px] text-zinc-400">
                 <Users className="h-3.5 w-3.5 text-brand-300" />
-                En fazla 2 kişi · eşit kontrol yetkisi
+                Kapasiteyi sen seç · eşit kontrol yetkisi
               </div>
             </div>
           </div>
@@ -278,6 +282,25 @@ export function HomePage() {
                   aria-describedby="video-help"
                   containerClassName="flex-1"
                 />
+
+                <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 sm:w-auto">
+                  <Users className="h-4 w-4 shrink-0 text-zinc-500" />
+                  <span className="text-[11px] font-medium text-zinc-400">Kapasite</span>
+                  <select
+                    id="room-capacity"
+                    value={capacity}
+                    onChange={(event) => setCapacity(Number(event.target.value))}
+                    aria-label="Oda kapasitesi (kaç kişi)"
+                    className="h-10 cursor-pointer appearance-none rounded-lg bg-transparent pr-1 text-[12px] font-semibold text-zinc-100 focus-visible:outline-none"
+                  >
+                    {CAPACITY_OPTIONS.map((option) => (
+                      <option key={option} value={option} className="bg-night-900 text-zinc-100">
+                        {option} kişi
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <Button
                   type="submit"
                   variant="primary"

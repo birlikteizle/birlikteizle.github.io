@@ -11,7 +11,7 @@ import {
   UserPlus,
   WifiOff,
 } from 'lucide-react'
-import type { RoomMember, RoomMembers, RoomPresenceMap } from '@/types'
+import type { RoomInfo, RoomMember, RoomMembers, RoomPresenceMap } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { useConnection } from '@/context/ConnectionContext'
 import { useToast } from '@/context/ToastContext'
@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Spinner'
 import { parseVideoUrl, providerDisplayName } from '@/lib/video'
 import { isP2P } from '@/lib/mode'
+import { DEFAULT_CAPACITY } from '@/lib/capacity'
 import { shortRoomCode } from '@/lib/roomLink'
 import { saveRecentRoom } from '@/lib/recentRooms'
 import { cn } from '@/lib/utils'
@@ -61,6 +62,7 @@ function RoomGate({ roomId, user }: { roomId: string | undefined; user: AppUser 
       <RoomReady
         roomId={roomId}
         user={user}
+        info={session.info}
         members={session.members}
         presence={session.presence}
       />
@@ -82,11 +84,13 @@ function RoomGate({ roomId, user }: { roomId: string | undefined; user: AppUser 
 function RoomReady({
   roomId,
   user,
+  info,
   members,
   presence,
 }: {
   roomId: string
   user: AppUser
+  info: RoomInfo | null
   members: RoomMembers
   presence: RoomPresenceMap
 }) {
@@ -122,9 +126,10 @@ function RoomReady({
     () => Object.values(members).filter((member): member is RoomMember => Boolean(member?.uid)),
     [members],
   )
-  const self = memberList.find((member) => member.uid === user.uid) ?? null
   const partner = memberList.find((member) => member.uid !== user.uid) ?? null
-  const partnerOnline = partner ? Boolean(presence[partner.uid]?.online) : false
+  const othersOnline = memberList.filter(
+    (member) => member.uid !== user.uid && presence[member.uid]?.online,
+  ).length
 
   const parsedPlayback = useMemo(
     () => (playback?.sourceUrl ? parseVideoUrl(playback.sourceUrl) : null),
@@ -188,9 +193,9 @@ function RoomReady({
     <PageShell className="pt-5 sm:pt-7">
       <RoomHeader
         roomId={roomId}
-        self={self}
-        partner={partner}
-        partnerOnline={partnerOnline}
+        members={memberList}
+        presence={presence}
+        capacity={info?.capacity ?? DEFAULT_CAPACITY}
         videoLabel={videoLabel}
         onInvite={() => setInviteOpen(true)}
         onLeave={handleLeave}
@@ -246,12 +251,12 @@ function RoomReady({
         </div>
       ) : null}
 
-      {!partner ? (
+      {memberList.length <= 1 ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-400/15 bg-brand-500/[0.06] px-3 py-2.5 text-[11px] leading-relaxed text-brand-100/80">
           <span className="inline-flex items-start gap-2">
             <UserPlus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-300" />
-            Partnerin henüz katılmadı. Davet bağlantısını paylaştığında odaya ikinci kişi olarak
-            katılır.
+            Henüz başka katılımcı yok. Davet bağlantısını paylaştığında katılan herkes aynı odada
+            aynı anda izler.
           </span>
           <button
             type="button"
@@ -345,8 +350,8 @@ function RoomReady({
             loading={messagesLoading}
             error={messagesError}
             onRetry={retryMessages}
-            partnerName={partner?.displayName ?? null}
-            partnerOnline={partnerOnline}
+            othersOnline={othersOnline}
+            othersTotal={Math.max(0, memberList.length - 1)}
             className="h-[calc(100dvh-15rem)] min-h-[360px] lg:sticky lg:top-20 lg:h-[calc(100dvh-7rem)] lg:min-h-[480px]"
           />
         </div>
@@ -356,7 +361,8 @@ function RoomReady({
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         roomId={roomId}
-        partnerName={partner?.displayName ?? null}
+        memberCount={memberList.length}
+        capacity={info?.capacity ?? DEFAULT_CAPACITY}
       />
     </PageShell>
   )

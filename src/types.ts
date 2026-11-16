@@ -21,6 +21,8 @@ export interface RoomInfo {
   createdBy: string
   createdAt: number
   status: 'active'
+  /** Odanın alabileceği en fazla kişi sayısı. */
+  capacity: number
 }
 
 export interface RoomMember {

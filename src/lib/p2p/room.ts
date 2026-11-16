@@ -1,8 +1,9 @@
 import type { ChatMessage, PlaybackState, RoomMember } from '@/types'
 import { joinRoom, type MessageAction, type Room } from 'trystero'
+import { normalizeCapacity } from '@/lib/capacity'
+import { readRoomCapacityFromLocation } from '@/lib/roomLink'
 
 const APP_ID = 'birlikte-izle-p2p-v1'
-const MAX_USERS = 2
 const HISTORY_LIMIT = 12
 const HISTORY_BATCH = 2
 
@@ -48,7 +49,7 @@ function friendlyError(code: string, fallback: string): string {
         'simetrik NAT) olabilir. Farklı bir ağda deneyin veya VITE_TURN_URL ile bir TURN sunucusu tanımlayın.'
       )
     case 'room-full':
-      return 'Oda dolu. Aynı anda yalnızca iki kişi izleyebilir.'
+      return 'Oda dolu. Kapasiteyi artırmak için odayı daha yüksek kişi sayısıyla yeniden oluştur.'
     case 'relay-failed':
       return 'Eşleşme sunucularına ulaşılamadı. İnternet bağlantını kontrol edip tekrar dene.'
     case 'identity-failed':
@@ -98,6 +99,7 @@ type Listener = (event: P2PEvent) => void
  */
 class P2PRoom {
   readonly roomId: string
+  readonly capacity: number
   private room: Room
   private action: MessageAction<Wire>
   private listeners = new Set<Listener>()
@@ -105,12 +107,13 @@ class P2PRoom {
   private localStream: MediaStream | null = null
   private destroyed = false
 
-  constructor(roomId: string) {
+  constructor(roomId: string, capacity: number) {
     this.roomId = roomId
+    this.capacity = capacity
     this.room = joinRoom(
       {
         appId: APP_ID,
-        maxUsers: MAX_USERS,
+        maxUsers: capacity,
         rtcConfig: { iceServers: buildIceServers() },
       },
       roomId,
@@ -243,7 +246,10 @@ interface Entry {
 
 const entries = new Map<string, Entry>()
 
-export function getP2PRoom(roomId: string): P2PRoom {
+export function getP2PRoom(
+  roomId: string,
+  capacity: number = readRoomCapacityFromLocation(),
+): P2PRoom {
   const existing = entries.get(roomId)
   if (existing) {
     if (existing.closeTimer !== null) {
@@ -253,7 +259,7 @@ export function getP2PRoom(roomId: string): P2PRoom {
     return existing.room
   }
 
-  const room = new P2PRoom(roomId)
+  const room = new P2PRoom(roomId, normalizeCapacity(capacity))
   entries.set(roomId, { room, refs: 0, closeTimer: null })
   return room
 }
@@ -262,9 +268,15 @@ export function getP2PRoom(roomId: string): P2PRoom {
  * Odaya bir referans ekler. React StrictMode'un hızlı mount/unmount döngüsünde
  * bağlantının gereksiz yere kopmaması için son referans bırakıldığında kısa bir
  * bekleme sonrası kapatılır.
+ *
+ * Kapasite verilmezse davet bağlantısındaki `?k=` değeri kullanılır; böylece
+ * odadaki herkes aynı sınırla bağlanır.
  */
-export function retainP2PRoom(roomId: string): { room: P2PRoom; release: () => void } {
-  const room = getP2PRoom(roomId)
+export function retainP2PRoom(
+  roomId: string,
+  capacity: number = readRoomCapacityFromLocation(),
+): { room: P2PRoom; release: () => void } {
+  const room = getP2PRoom(roomId, capacity)
   const entry = entries.get(roomId)
   if (entry) entry.refs += 1
 

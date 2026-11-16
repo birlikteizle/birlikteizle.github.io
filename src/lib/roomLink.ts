@@ -1,13 +1,35 @@
 import { isValidRoomId } from '@/lib/ids'
 import { isP2P } from '@/lib/mode'
+import { DEFAULT_CAPACITY, normalizeCapacity } from '@/lib/capacity'
 
-export function buildRoomUrl(roomId: string): string {
+export function buildRoomUrl(roomId: string, capacity?: number): string {
   const base = import.meta.env.BASE_URL || '/'
   const prefix = base.endsWith('/') ? base : `${base}/`
   // Sunucusuz modda yönlendirme hash üzerinden yapılır; GitHub Pages bilinmeyen
-  // yollar için 404 döndüğünde bile bağlantı çalışır.
-  if (isP2P) return `${window.location.origin}${prefix}#/room/${roomId}`
+  // yollar için 404 döndürdüğünde bile bağlantı çalışır.
+  if (isP2P) {
+    // Kapasite davet bağlantısıyla taşınır: katılan herkes aynı sınırla bağlanır.
+    const suffix = capacity ? `?k=${normalizeCapacity(capacity)}` : ''
+    return `${window.location.origin}${prefix}#/room/${roomId}${suffix}`
+  }
   return `${window.location.origin}${prefix}room/${roomId}`
+}
+
+/**
+ * Sunucusuz modda kapasiteyi adresin `#/room/<id>?k=<sayı>` kısmından okur.
+ * Bilgi yoksa varsayılana düşer.
+ */
+export function readRoomCapacityFromLocation(fallback = DEFAULT_CAPACITY): number {
+  if (typeof window === 'undefined') return fallback
+  const hash = window.location.hash
+  const queryIndex = hash.indexOf('?')
+  if (queryIndex === -1) return fallback
+  try {
+    const params = new URLSearchParams(hash.slice(queryIndex + 1))
+    return normalizeCapacity(params.get('k'), fallback)
+  } catch {
+    return fallback
+  }
 }
 
 /**
@@ -25,8 +47,8 @@ export function parseRoomReference(rawInput: string): string | null {
 
   try {
     const url = new URL(candidate)
-    // HashRouter bağlantıları: .../#/room/<id>
-    const hashPath = url.hash.startsWith('#/') ? url.hash.slice(1) : ''
+    // HashRouter bağlantıları: .../#/room/<id>?k=6 — sorgu kısmı atılır.
+    const hashPath = url.hash.startsWith('#/') ? url.hash.slice(1).split('?')[0] : ''
     const segments = (hashPath || url.pathname).split('/').filter(Boolean)
     const roomIndex = segments.findIndex((segment) => ['room', 'join', 'oda'].includes(segment.toLowerCase()))
     if (roomIndex >= 0) {

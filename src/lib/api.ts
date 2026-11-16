@@ -118,8 +118,11 @@ export const api = {
   me: (token: string, signal?: AbortSignal) =>
     request<{ user: AppUser }>('/api/auth/me', { token, signal }),
 
-  createRoom: (source: VideoSource | null) =>
-    request<{ roomId: string }>('/api/rooms', { method: 'POST', body: { source } }),
+  createRoom: (source: VideoSource | null, capacity?: number) =>
+    request<{ roomId: string }>('/api/rooms', {
+      method: 'POST',
+      body: { source, capacity },
+    }),
 
   joinRoom: (roomId: string) =>
     request<{ status: string }>(`/api/rooms/${roomId}/join`, { method: 'POST', body: {} }),

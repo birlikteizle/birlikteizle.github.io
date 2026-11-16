@@ -28,7 +28,7 @@ const META: Record<
     icon: UsersRound,
     title: 'Bu oda dolu',
     description:
-      'Odalar en fazla iki kişiliktir ve bu odada iki üye zaten var. Üçüncü bir kişi katılamaz. Yeni bir oda oluşturabilir veya kendi davetini paylaşabilirsin.',
+      'Bu odanın kapasitesi doldu; yeni bir kişi katılamaz. Odanın kurucusundan daha yüksek kapasiteli yeni bir oda oluşturmasını isteyebilir ya da kendi odanı açabilirsin.',
     tone: 'text-amber-300 border-amber-400/20 bg-amber-400/[0.07]',
   },
   closed: {

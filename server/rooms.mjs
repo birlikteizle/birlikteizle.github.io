@@ -6,6 +6,18 @@ const MAX_ACTIVITY = 2000
 const VALID_PROVIDERS = new Set(['youtube', 'vimeo', 'html5', 'hls', 'iframe'])
 const VALID_STATUSES = new Set(['playing', 'paused', 'idle'])
 
+/** Oda kapasitesi sınırları. */
+const MIN_CAPACITY = 2
+const MAX_CAPACITY = 50
+const DEFAULT_CAPACITY = 2
+
+export function normalizeCapacity(value, fallback = DEFAULT_CAPACITY) {
+  const parsed = Math.floor(Number(value))
+  if (!Number.isFinite(parsed)) return fallback
+  if (parsed < MIN_CAPACITY) return MIN_CAPACITY
+  return Math.min(MAX_CAPACITY, parsed)
+}
+
 export class RoomError extends Error {
   constructor(code, message, status = 400) {
     super(message)
@@ -183,7 +195,7 @@ export function normalizeSource(input) {
   return { sourceUrl, provider, videoId }
 }
 
-export function createRoom(state, user, source) {
+export function createRoom(state, user, source, capacity) {
   const normalized = normalizeSource({
     provider: source?.provider,
     sourceUrl: source?.url,
@@ -193,7 +205,12 @@ export function createRoom(state, user, source) {
   const now = Date.now()
 
   state.rooms[roomId] = {
-    info: { createdBy: user.uid, createdAt: now, status: 'active' },
+    info: {
+      createdBy: user.uid,
+      createdAt: now,
+      status: 'active',
+      capacity: normalizeCapacity(capacity),
+    },
     members: { s0: { ...memberOf(user), joinedAt: now } },
     playback: {
       ...normalized,
@@ -227,13 +244,16 @@ export function joinRoom(state, roomId, user) {
     return { status: 'already-member' }
   }
 
-  if (!room.members.s0) {
-    room.members.s0 = memberOf(user)
-  } else if (!room.members.s1) {
-    room.members.s1 = memberOf(user)
-  } else {
-    return { status: 'full' }
-  }
+  const capacity = normalizeCapacity(room.info?.capacity)
+  room.info.capacity = capacity
+
+  const used = Object.keys(room.members).length
+  if (used >= capacity) return { status: 'full' }
+
+  // Boş slot bul (s0, s1, s2 ...); silinen slotlar yeniden kullanılır.
+  let index = 0
+  while (room.members[`s${index}`]) index += 1
+  room.members[`s${index}`] = memberOf(user)
 
   addActivity(state, { roomId, type: 'join', user })
   return { status: 'joined' }

@@ -9,7 +9,11 @@ import { isP2P } from '@/lib/mode'
  * - Sunucusuz (P2P) modda kimlik tarayıcıda üretilir; seçilen kaynak, oda
  *   sayfası açılana kadar oturum deposunda tutulur.
  */
-export async function createRoom(_user: AppUser | null, source: VideoSource | null): Promise<string> {
+export async function createRoom(
+  _user: AppUser | null,
+  source: VideoSource | null,
+  capacity?: number,
+): Promise<string> {
   if (isP2P) {
     const { createRoomId, stashInitialSource } = await import('@/lib/p2p/room')
     const roomId = createRoomId()
@@ -24,7 +28,7 @@ export async function createRoom(_user: AppUser | null, source: VideoSource | nu
     return roomId
   }
 
-  const { roomId } = await api.createRoom(source)
+  const { roomId } = await api.createRoom(source, capacity)
   return roomId
 }
 

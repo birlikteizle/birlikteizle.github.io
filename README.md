@@ -1,18 +1,35 @@
 # Birlikte İzle
 
-İki kişinin aynı videoyu gerçek zamanlı olarak birlikte izlediği ve oynatıcıyı **eşit yetkiyle**
-kontrol ettiği bir web uygulaması.
+İki ya da daha fazla kişinin aynı videoyu gerçek zamanlı olarak birlikte izlediği ve oynatıcıyı
+**eşit yetkiyle** kontrol ettiği bir web uygulaması.
 
 - **Sıfır dış servis kurulumu:** Firebase/Auth gerekmez. Arayüz, API ve gerçek zamanlı kanal tek bir
   Node sunucusunda çalışır.
 - **Gerçek senkronizasyon:** Sunucu zaman damgası + komut kimliği. Oynat/duraklat/sar/hız/video
   değişimi iki tarafta da aynı ana hizalanır.
 - **Eşit kontrol:** Oda sahibi ayrıcalığı yoktur; iki taraf da oynatıcıyı yönetir.
-- **Kalıcı oda:** Oda, mesajlar ve son oynatma konumu `.data/state.json` içinde saklanır.
+- **Kalıcı oda:** Oda, mesajlar ve son oynatma konumu `.data/state.json` içinde saklanır (sunucu modu).
+- **Ayarlanabilir kapasite:** Oda oluştururken 2-50 kişi arasında seçim; davet bağlantısı kapasiteyi taşır.
 - **Sohbet:** Oda içi mesajlar aynı gerçek zamanlı kanaldan iletilir.
 - **Ekran paylaşımı (WebRTC):** Gömülü oynatmayı engelleyen sitelerden bile (Netflix, film siteleri)
   sesli-görüntülü birlikte izleme.
 - **İki çalışma modu:** kendi sunucun (kalıcı) veya **sunucusuz P2P** (GitHub Pages'te çalışır).
+
+---
+
+## Oda kapasitesi
+
+Oda oluştururken **Kapasite** açılır listesinden kaç kişinin katılabileceğini seçersin
+(2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 50). Kapasite dolduğunda yeni katılım engellenir ve
+katılmaya çalışan kişi net bir mesaj görür.
+
+- **Sunucu modunda:** kapasite oda kaydında saklanır; sunucu her katılımı bu sınıra göre doğrular.
+- **Sunucusuz (P2P) modda:** kapasite davet bağlantısına gömülür (`#/room/<id>?k=6`) ve eşleşme
+  ağı bu sayıyla sınırlanır. Böylece bağlantıyı açan herkes aynı sınırla bağlanır.
+
+> **Sunucusuz modda kalabalık odalar:** P2P'de herkes herkesle doğrudan bağlanır; bağlantı sayısı
+> kişi sayısının karesiyle artar. 8 kişiye kadar akıcıdır, daha kalabalık odalar için (özellikle
+> ekran paylaşımı yapılacaksa) sunucu modu daha uygundur.
 
 ---
 
@@ -199,7 +216,7 @@ Node HTTP sunucusu (server/index.mjs)
   `updatedAt` sunucu saatiyle yazılır. İstemciler saat farkını `/api/time` ile ölçer.
 - Çevrimiçi durum, SSE bağlantısı + 25 saniyelik ping ile belirlenir; sekme kapanınca
   sunucu `leave` olayını kaydeder.
-- Oda kapasitesi iki kişidir; üçüncü katılım `409 ROOM_FULL` alır.
+- Oda kapasitesi oluştururken seçilir (2-50 kişi); kapasite dolduğunda yeni katılım `409 ROOM_FULL` alır.
 
 ### API uçları
 
