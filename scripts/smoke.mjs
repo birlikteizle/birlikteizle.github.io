@@ -96,30 +96,15 @@ const joined = await call(`/api/rooms/${roomId}/join`, { method: 'POST', token: 
 assert(joined.status === 'joined', 'ikinci kullanıcı odaya katılmalı')
 step('Katılma', joined.status)
 
-// Yetki: oynatmayı yalnızca oda yöneticisi (odayı kuran) değiştirebilir.
-const forbidden = await fetch(`${base}/api/rooms/${roomId}/playback`, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', authorization: `Bearer ${ayse.token}` },
-  body: JSON.stringify({
-    status: 'playing',
-    currentTime: 42.5,
-    playbackRate: 1,
-    commandId: `denied-${Date.now()}`,
-  }),
-})
-assert(forbidden.status === 403, `yönetici olmayan 403 almalı, gelen: ${forbidden.status}`)
-step('Yetki kontrolü', 'yönetici olmayan oynatamadı (403)')
-
+// Eşit kontrol: odadaki herkes oynatmayı değiştirebilir.
 const playback = await call(`/api/rooms/${roomId}/playback`, {
   method: 'POST',
-  token: ali.token,
+  token: ayse.token,
   body: { status: 'playing', currentTime: 42.5, playbackRate: 1, commandId: `smoke-${Date.now()}` },
 })
 assert(playback.playback.status === 'playing', 'oynatma durumu playing olmalı')
-assert(playback.playback.updatedBy === ali.user.uid, 'komutu gönderen kullanıcı yazılmalı')
+assert(playback.playback.updatedBy === ayse.user.uid, 'komutu gönderen kullanıcı yazılmalı')
 step('Oynatma komutu', `${playback.playback.currentTime}s · ${playback.playback.status}`)
-
-// Yönetici yetki verirse o kişi de yönetebilir.
 
 const message = await call(`/api/rooms/${roomId}/messages`, {
   method: 'POST',

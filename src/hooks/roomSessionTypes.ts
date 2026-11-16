@@ -8,6 +8,4 @@ export interface RoomSessionResult {
   info: RoomInfo | null
   members: RoomMembers
   presence: RoomPresenceMap
-  /** Bu oturumdaki kullanıcı oynatmayı yönetebilir mi? (Odayı kuran kişi.) */
-  canManage: boolean
 }

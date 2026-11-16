@@ -287,15 +287,6 @@ function estimateExpectedTime(playback, now) {
 export function applyPlayback(state, roomId, user, command) {
   const room = state.rooms[roomId]
   if (!room) throw new RoomError('ROOM_NOT_FOUND', 'Oda bulunamadı.', 404)
-
-  // Oynatmayı yalnızca odayı kuran yönetici değiştirebilir.
-  if (room.info?.createdBy && room.info.createdBy !== user.uid) {
-    throw new RoomError(
-      'ADMIN_ONLY',
-      'Oynatmayı yalnızca odayı kuran yönetici değiştirebilir.',
-      403,
-    )
-  }
   const status = String(command.status ?? '')
   if (!VALID_STATUSES.has(status)) {
     throw new RoomError('INVALID_COMMAND', 'Geçersiz oynatma durumu.')

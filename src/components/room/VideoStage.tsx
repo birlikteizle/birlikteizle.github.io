@@ -43,8 +43,6 @@ interface VideoStageProps {
   serverOffset: number
   syncNonce: number
   isOnline: boolean
-  /** Odayı yönetme yetkisi: yalnızca oda yöneticisinde true olur. */
-  canManage: boolean
   lastLocalCommandIdRef: MutableRefObject<string | null>
   onRequestAddVideo: () => void
 }
@@ -66,7 +64,6 @@ export function VideoStage({
   serverOffset,
   syncNonce,
   isOnline,
-  canManage,
   lastLocalCommandIdRef,
   onRequestAddVideo,
 }: VideoStageProps) {
@@ -406,7 +403,7 @@ export function VideoStage({
   }, [])
 
   const canControl =
-    isOnline && Boolean(playable) && ready && !playerError && !sourceFailure && !isEmbed && canManage
+    isOnline && Boolean(playable) && ready && !playerError && !sourceFailure && !isEmbed
   /** Çubuk gizli mi? Gömülü sayfada her zaman görünür kalır. */
   const controlsHidden = !isEmbed && !controlsVisible
   const activeCue = useMemo(
@@ -417,7 +414,7 @@ export function VideoStage({
   const handleTogglePlay = useCallback(() => {
     const state = playbackRef.current
     const player = playerRef.current
-    if (!state || !player || !playableRef.current || !isOnline || !canManage) return
+    if (!state || !player || !playableRef.current || !isOnline) return
 
     setPreviewTime(null)
 
@@ -446,13 +443,13 @@ export function VideoStage({
       currentTime: start,
       playbackRate: state.playbackRate,
     })
-  }, [canManage, isOnline])
+  }, [isOnline])
 
   const handleSeek = useCallback(
     (target: number) => {
       const state = playbackRef.current
       const player = playerRef.current
-      if (!state || !player || !isOnline || !canManage) return
+      if (!state || !player || !isOnline) return
 
       const total = player.getDuration()
       const next = clamp(target, 0, total > 0 ? total : target)
@@ -471,7 +468,7 @@ export function VideoStage({
         playbackRate: state.playbackRate,
       })
     },
-    [canManage, isOnline],
+    [isOnline],
   )
 
   const handleSkip = useCallback(
@@ -487,7 +484,7 @@ export function VideoStage({
     (rate: number) => {
       const state = playbackRef.current
       const player = playerRef.current
-      if (!state || !player || !isOnline || !canManage) return
+      if (!state || !player || !isOnline) return
       player.setPlaybackRate(rate)
       void publishCommandRef.current({
         status: state.status,
@@ -495,7 +492,7 @@ export function VideoStage({
         playbackRate: rate,
       })
     },
-    [canManage, isOnline],
+    [isOnline],
   )
 
   const handleVolumeChange = useCallback((next: number) => {

@@ -31,8 +31,6 @@ export function useRoomSessionP2P(
   const capacity = linkMeta.capacity
   const adminUid = linkMeta.adminUid
 
-  const canManage = !adminUid || adminUid === uid
-
   const info = useMemo<RoomInfo>(
     () => ({
       createdBy: adminUid || uid,
@@ -116,5 +114,5 @@ export function useRoomSessionP2P(
     }
   }, [roomId, uid, me])
 
-  return { status, error, info, members, presence, canManage }
+  return { status, error, info, members, presence }
 }

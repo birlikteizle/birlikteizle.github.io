@@ -11,7 +11,7 @@
 - **Kalıcı oda:** Oda, mesajlar ve son oynatma konumu `.data/state.json` içinde saklanır (sunucu modu).
 - **Ayarlanabilir kapasite:** Oda oluştururken 2-50 kişi arasında seçim; davet bağlantısı kapasiteyi taşır.
 - **Sohbet:** Oda içi mesajlar aynı gerçek zamanlı kanaldan iletilir.
-- **Yetkilendirme:** Odayı açan **yönetici** olur; istediği kişiye oynatma yetkisi verebilir.
+- **Eşit kontrol:** Oda sahibi ayrıcalığı yoktur; odadaki herkes oynatıcıyı yönetir.
 - **Sesli sohbet:** Mikrofon ve kamera (kapalı başlar), mute ve kamera aç/kapa düğmeleriyle.
 - **Public / özel oda:** Oda görünürlüğü seçilir; özel odalar listelenmez.
 - **Ekran paylaşımı (WebRTC):** Gömülü oynatmayı engelleyen sitelerden bile (Netflix, film siteleri)
@@ -20,18 +20,17 @@
 
 ---
 
-## Yetkiler ve roller
+## Yetkiler
 
-Odayı oluşturan kişi **yönetici** olur ve oynatmayı **yalnızca o** yönetir:
+Oynatma kontrolü **eşittir**: odadaki herkes oynat/duraklat, sar, hız değiştir ve kaynağı değiştir
+yapabilir. Oda sahibi ayrıcalığı yoktur.
 
-- oynat/duraklat, sarma, hız ve kaynak değiştirme,
-- odayı kapatma.
+- Odayı yalnızca **kuran kişi kapatabilir** (yıkıcı işlem).
+- Ses seviyesi, altyazı ve tam ekran herkeste **yereldir**.
+- Oda içindeki "Katılımcılar" çubuğu kimlerin çevrimiçi olduğunu gösterir.
 
-Diğer katılımcılar izler, sohbet eder ve sesli sohbete katılabilir. Ses seviyesi, altyazı ve
-tam ekran herkeste **yereldir**.
-
-> Sunucusuz (P2P) modda yönetici, davet bağlantısındaki `?a=` kimliğiyle eşleşen kullanıcıdır.
-> Bu yüzden davet bağlantısını **başka bir cihazda** açarsan o cihazda yönetici olamazsın.
+> Sunucusuz (P2P) modda da kontrol eşittir; davet bağlantısındaki `?a=` değeri yalnızca oda
+> bilgisinde "kuran kişi" olarak tutulur.
 
 ## Sesli sohbet
 

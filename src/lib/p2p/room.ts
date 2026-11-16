@@ -243,11 +243,6 @@ class P2PRoom {
     void this.action.send({ t: 'bye', uid }).catch(() => undefined)
   }
 
-  /** Oynatma komutunu yalnızca oda yöneticisi gönderebilir. */
-  canManageFrom(uid: string): boolean {
-    return !this.adminUid || uid === this.adminUid
-  }
-
   async addStream(stream: MediaStream): Promise<void> {
     this.localStream = stream
     await this.room.addStream(stream, { metadata: { voice: false } })

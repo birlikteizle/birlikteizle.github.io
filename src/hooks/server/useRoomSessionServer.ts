@@ -134,7 +134,5 @@ export function useRoomSessionServer(
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [status, roomId])
 
-  const canManage = Boolean(info?.createdBy) && info?.createdBy === uid
-
-  return { status, error, info, members, presence, canManage }
+  return { status, error, info, members, presence }
 }

@@ -67,7 +67,6 @@ function RoomGate({ roomId, user }: { roomId: string | undefined; user: AppUser 
         info={session.info}
         members={session.members}
         presence={session.presence}
-        canManage={session.canManage}
       />
     )
   }
@@ -90,14 +89,12 @@ function RoomReady({
   info,
   members,
   presence,
-  canManage,
 }: {
   roomId: string
   user: AppUser
   info: RoomInfo | null
   members: RoomMembers
   presence: RoomPresenceMap
-  canManage: boolean
 }) {
   const navigate = useNavigate()
   const { pushToast } = useToast()
@@ -135,11 +132,6 @@ function RoomReady({
   const othersOnline = memberList.filter(
     (member) => member.uid !== user.uid && presence[member.uid]?.online,
   ).length
-
-  /** Oda yöneticisinin adı (yönetici olmayanlara gösterilir). */
-  const adminName =
-    (info?.createdBy ? memberList.find((member) => member.uid === info.createdBy)?.displayName : '') ||
-    null
 
   const parsedPlayback = useMemo(
     () => (playback?.sourceUrl ? parseVideoUrl(playback.sourceUrl) : null),
@@ -212,25 +204,7 @@ function RoomReady({
       />
 
       {memberList.length > 1 ? (
-        <MemberBar
-          members={memberList}
-          presence={presence}
-          selfUid={user.uid}
-          adminUid={info?.createdBy ?? ''}
-        />
-      ) : null}
-
-      {!canManage && adminName ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-400">
-          <span className="inline-flex items-start gap-2">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300/80" />
-            <span>
-              Bu odanın yöneticisi <strong className="font-semibold text-zinc-200">{adminName}</strong>.
-              Oynat/duraklat, sarma ve kaynak değiştirme yalnızca yöneticide; sen izleyip sohbet edebilir,
-              ses ile kameranı açabilirsin.
-            </span>
-          </span>
-        </div>
+        <MemberBar members={memberList} presence={presence} selfUid={user.uid} />
       ) : null}
 
       {isP2P ? (
@@ -362,7 +336,7 @@ function RoomReady({
           <VideoStage
             roomId={roomId}
             uid={user.uid}
-            canManage={canManage}
+            
             playback={playback}
             loading={playbackLoading}
             playbackError={playbackError}
@@ -378,7 +352,7 @@ function RoomReady({
             playback={playback}
             publish={publish}
             isOnline={isOnline}
-            canManage={canManage}
+            
             focusToken={focusToken}
           />
         </div>

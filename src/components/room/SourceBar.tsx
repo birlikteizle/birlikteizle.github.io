@@ -7,7 +7,6 @@ import {
   Link2,
   Loader2,
   Play,
-  ShieldCheck,
   Trash2,
   WifiOff,
 } from 'lucide-react'
@@ -23,8 +22,6 @@ interface SourceBarProps {
   playback: PlaybackState | null
   publish: (patch: PlaybackCommand) => Promise<string>
   isOnline: boolean
-  /** Yalnızca oda yöneticisi kaynağı değiştirebilir. */
-  canManage: boolean
   /** Artınca giriş alanına odaklanılır (video yoksa "video ekle" çağrısı). */
   focusToken: number
 }
@@ -37,7 +34,7 @@ function ProviderIcon({ provider }: { provider: VideoProvider }) {
   )
 }
 
-export function SourceBar({ playback, publish, isOnline, canManage, focusToken }: SourceBarProps) {
+export function SourceBar({ playback, publish, isOnline, focusToken }: SourceBarProps) {
   const { pushToast } = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -75,15 +72,6 @@ export function SourceBar({ playback, publish, isOnline, canManage, focusToken }
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (submitting) return
-
-    if (!canManage) {
-      pushToast({
-        kind: 'warning',
-        title: 'Yetkin yok',
-        description: 'Kaynağı yalnızca oda yöneticisi veya yetki verdiği kişiler değiştirebilir.',
-      })
-      return
-    }
 
     if (!isOnline) {
       pushToast({
@@ -129,7 +117,7 @@ export function SourceBar({ playback, publish, isOnline, canManage, focusToken }
   }
 
   const handleRemove = async () => {
-    if (!isOnline || submitting || !canManage) return
+    if (!isOnline || submitting) return
     if (!confirmRemove) {
       setConfirmRemove(true)
       return
@@ -194,7 +182,7 @@ export function SourceBar({ playback, publish, isOnline, canManage, focusToken }
               variant={confirmRemove ? 'danger' : 'ghost'}
               size="icon-sm"
               onClick={() => void handleRemove()}
-              disabled={!isOnline || !canManage || submitting}
+              disabled={!isOnline || submitting}
               aria-label={confirmRemove ? 'Kaldırmayı onayla' : 'Videoyu kaldır'}
               title={confirmRemove ? 'Onaylamak için tekrar tıkla' : 'Videoyu odadan kaldır'}
             >
@@ -236,13 +224,13 @@ export function SourceBar({ playback, publish, isOnline, canManage, focusToken }
             aria-label="Yeni video bağlantısı"
             aria-describedby="source-bar-help"
             containerClassName="flex-1"
-            disabled={!isOnline || !canManage}
+            disabled={!isOnline}
           />
           <Button
             type="submit"
             variant={hasVideo ? 'secondary' : 'primary'}
             loading={submitting}
-            disabled={!isOnline || !canManage || !value.trim()}
+            disabled={!isOnline || !value.trim()}
             className="h-10 shrink-0"
           >
             {!submitting ? <Play className="h-3.5 w-3.5 fill-current" /> : null}
@@ -256,11 +244,6 @@ export function SourceBar({ playback, publish, isOnline, canManage, focusToken }
           <span className="inline-flex items-center gap-1.5 text-amber-300/80">
             <WifiOff className="h-3 w-3" />
             Çevrimdışısın. Video değiştirme bağlantı gelince etkinleşir.
-          </span>
-        ) : !canManage ? (
-          <span className="inline-flex items-center gap-1.5 text-zinc-500">
-            <ShieldCheck className="h-3 w-3" />
-            Kaynağı yalnızca oda yöneticisi değiştirebilir. İzlemeye devam edebilirsin.
           </span>
         ) : shownFailure ? (
           <span role="alert" className="inline-flex flex-wrap items-start gap-1.5 text-amber-200/90">

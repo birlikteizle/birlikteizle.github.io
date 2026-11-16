@@ -50,9 +50,7 @@ export function usePlaybackP2P(roomId: string, uid: string): UsePlaybackResult {
         const incoming = event.playback
         const current = playbackRef.current
 
-        // Oynatmayı yalnızca oda yöneticisi ve yetki verdiği kişiler değiştirebilir.
-        if (event.from && roomRef.current && !roomRef.current.canManageFrom(event.from)) return
-
+        // Oynatmayı odadaki herkes yönetebilir; yalnızca daha eski komutlar yok sayılır.
         if (!shouldApplyPlayback(incoming, current, lastAppliedAtRef.current)) return
 
         lastAppliedAtRef.current = Number(incoming.updatedAt) || 0
