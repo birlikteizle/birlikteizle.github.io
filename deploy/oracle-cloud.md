@@ -12,6 +12,17 @@ bilgisayarın kapalı olsa bile site internetten erişilebilir olur.
 > emin ol. Emniyet için hesabında bir **bütçe uyarısı** (Budget → Alert) kur: harcama
 > 1 TL olduğunda e-posta gelsin.
 
+## Özet: sırayla yapılacaklar
+
+1. Oracle hesabı aç (kart doğrulaması, ücret yok).
+2. **Compute → Instances → Create** → Ubuntu 24.04 + `E2.1.Micro` + genel IP + SSH anahtarı.
+3. İki ağ kuralı: **Security List → 8787** *ve* sunucuda `iptables -I INPUT 1 -p tcp --dport 8787 -j ACCEPT`.
+4. Kodu sunucuya taşı (WinSCP veya `git clone`).
+5. `curl -fsSL https://get.docker.com | sudo sh` → `cd ~/birlikte-izle` → `docker compose up -d --build`.
+6. Tarayıcıda `http://<SUNUCU_IP>:8787` → oda oluştur, davet bağlantısını paylaş.
+
+Takıldığın adımın numarasını söyle, oradan devam ederiz.
+
 ---
 
 ## 1. Hesap aç
@@ -64,21 +75,31 @@ Yeni başlayanların %90'ı bu adımı atladığı için site açılmaz. **İki 
 
 ### 3b) Sunucunun kendi güvenlik duvarı
 
-Oracle'ın Ubuntu imajları, sen istemeden **iptables** ile her şeyi bloklar. SSH ile bağlan
-ve şunu çalıştır:
+Oracle'ın Ubuntu imajları, sen istemeden **iptables** ile her şeyi bloklar. Kuralı **zincirin
+başına** eklemek en güvenlisidir (sondaki `REJECT` kuralından önce gelir):
 
 ```bash
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 8787 -j ACCEPT
+sudo iptables -I INPUT 1 -p tcp --dport 8787 -j ACCEPT
+sudo apt-get install -y iptables-persistent
 sudo netfilter-persistent save
 ```
 
-Ubuntu 24.04 imajlarında ayrıca `ufw` yoksa bu kadar yeterlidir. HTTPS ekleyeceksen:
+Doğrulama (kuralın en üstte olduğunu gör):
 
 ```bash
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+sudo iptables -L INPUT -n --line-numbers
+```
+
+HTTPS ekleyeceksen aynı şekilde 80 ve 443'ü de ekle:
+
+```bash
+sudo iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT 1 -p tcp --dport 443 -j ACCEPT
 sudo netfilter-persistent save
 ```
+
+> `apt-get install` sırasında debconf ekranı çıkarsa Enter'a basıp geç. `iptables-persistent`
+> kurulmadan `netfilter-persistent save` komutu "command not found" verir — en sık yapılan hata bu.
 
 ### SSH ile bağlanma (Windows)
 
