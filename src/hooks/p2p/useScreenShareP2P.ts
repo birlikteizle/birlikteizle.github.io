@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { retainP2PRoom } from '@/lib/p2p/room'
-import type { ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
+import type { BroadcastKind, ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
+import { broadcastErrorMessage, captureCamera, captureScreen, supportsCamera, supportsScreen } from '@/lib/mediaCapture'
 
 /**
- * Sunucusuz (P2P) ekran paylaşımı.
+ * Sunucusuz (P2P) yayın. Trystero medya akışını doğrudan eşler arasında kurar.
  *
- * Trystero medya akışını doğrudan eşler arasında kurar; ek bir el sıkışma
- * protokolüne gerek yoktur. Paylaşan taraf `addStream`, diğer taraf
- * `onPeerStream` üzerinden akışı alır.
+ * Masaüstünde ekran/sekme, telefonda kamera yayını kullanılır; ikisi de aynı
+ * kanaldan gider.
  */
 export function useScreenShareP2P(
   roomId: string,
@@ -19,17 +19,19 @@ export function useScreenShareP2P(
   const [sharerName, setSharerName] = useState<string | null>(null)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [kind, setKind] = useState<BroadcastKind | null>(null)
+  const [micEnabled, setMicEnabled] = useState(true)
 
   const roleRef = useRef<ScreenShareRole>('idle')
   roleRef.current = role
   const localStreamRef = useRef<MediaStream | null>(null)
   const roomRef = useRef<ReturnType<typeof retainP2PRoom>['room'] | null>(null)
-  const releaseRef = useRef<(() => void) | null>(null)
+
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('environment')
 
   useEffect(() => {
     const { room, release } = retainP2PRoom(roomId)
     roomRef.current = room
-    releaseRef.current = release
 
     const unsubscribe = room.subscribe((event) => {
       if (event.type === 'stream') {
@@ -54,7 +56,6 @@ export function useScreenShareP2P(
       room.removeStream()
       release()
       roomRef.current = null
-      releaseRef.current = null
     }
   }, [roomId])
 
@@ -69,58 +70,88 @@ export function useScreenShareP2P(
     roomRef.current?.removeStream()
     setRole('idle')
     setSharerName(null)
+    setKind(null)
   }, [])
 
-  const startSharing = useCallback(async () => {
-    if (roleRef.current !== 'idle') return
-    setError(null)
+  const startSharing = useCallback(
+    async (requested: BroadcastKind = 'screen') => {
+      if (roleRef.current !== 'idle') return
+      setError(null)
 
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
-      setError('Bu tarayıcı ekran paylaşımını desteklemiyor.')
-      return
-    }
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      setError(
-        'Ekran paylaşımı için güvenli bağlantı (https) gerekir. GitHub Pages adresi https olduğu ' +
-          'için bu sorun yalnızca http üzerinden açtığında görülür.',
-      )
-      return
-    }
+      const mode: BroadcastKind = requested === 'screen' && supportsScreen() ? 'screen' : 'camera'
 
+      try {
+        const stream =
+          mode === 'screen'
+            ? await captureScreen()
+            : await captureCamera({ facingMode: cameraFacing, withAudio: true })
+
+        localStreamRef.current = stream
+        setLocalStream(stream)
+        setRole('sharing')
+        setSharerName(displayName)
+        setKind(mode)
+        setMicEnabled(stream.getAudioTracks().length > 0)
+
+        for (const track of stream.getTracks()) {
+          // Ekran paylaşımında tarayıcı kendi "durdur" düğmesini kullanabilir.
+          if (track.kind === 'video' && mode === 'screen') track.onended = () => stopSharing()
+        }
+
+        const room = roomRef.current
+        if (!room) {
+          setError('Oda bağlantısı hazır değil. Sayfayı yenileyip tekrar dene.')
+          stopSharing()
+          return
+        }
+        await room.addStream(stream)
+      } catch (caught) {
+        setError(broadcastErrorMessage(caught, mode))
+        localStreamRef.current = null
+        setLocalStream(null)
+        setRole('idle')
+        setSharerName(null)
+        setKind(null)
+      }
+    },
+    [cameraFacing, displayName, stopSharing],
+  )
+
+  const switchCamera = useCallback(async () => {
+    const stream = localStreamRef.current
+    const room = roomRef.current
+    if (!stream || !room || roleRef.current !== 'sharing') return
+
+    const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment'
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30, max: 60 } },
-        audio: true,
-      })
+      const fresh = await captureCamera({ facingMode: nextFacing, withAudio: false })
+      const newTrack = fresh.getVideoTracks()[0]
+      const oldTrack = stream.getVideoTracks()[0]
+      if (!newTrack || !oldTrack) return
 
-      localStreamRef.current = stream
-      setLocalStream(stream)
-      setRole('sharing')
-      setSharerName(displayName)
+      const audioTracks = stream.getAudioTracks()
+      const combined = new MediaStream([newTrack, ...audioTracks])
 
-      for (const track of stream.getTracks()) {
-        track.onended = () => stopSharing()
-      }
-
-      const room = roomRef.current
-      if (!room) {
-        setError('Oda bağlantısı hazır değil. Sayfayı yenileyip tekrar dene.')
-        return
-      }
-      await room.addStream(stream)
+      await room.replaceVideoTrack(oldTrack, newTrack)
+      oldTrack.stop()
+      localStreamRef.current = combined
+      setLocalStream(combined)
+      setCameraFacing(nextFacing)
+      setMicEnabled(combined.getAudioTracks().some((track) => track.enabled))
     } catch (caught) {
-      const name = (caught as { name?: string }).name
-      setError(
-        name === 'NotAllowedError'
-          ? 'Ekran paylaşımı iptal edildi ya da izin verilmedi.'
-          : 'Ekran paylaşımı başlatılamadı. Başka bir uygulama ekranı kullanıyor olabilir.',
-      )
-      localStreamRef.current = null
-      setLocalStream(null)
-      setRole('idle')
-      setSharerName(null)
+      setError(broadcastErrorMessage(caught, 'camera'))
     }
-  }, [displayName, stopSharing])
+  }, [cameraFacing])
+
+  const toggleMic = useCallback(() => {
+    const stream = localStreamRef.current
+    if (!stream) return
+    const tracks = stream.getAudioTracks()
+    if (tracks.length === 0) return
+    const next = !tracks.some((track) => track.enabled)
+    for (const track of tracks) track.enabled = next
+    setMicEnabled(next)
+  }, [])
 
   return {
     role,
@@ -132,5 +163,11 @@ export function useScreenShareP2P(
     stopSharing,
     isSharing: role === 'sharing',
     isWatching: role === 'watching',
+    kind,
+    canShareScreen: supportsScreen(),
+    canShareCamera: supportsCamera(),
+    switchCamera,
+    micEnabled,
+    toggleMic,
   }
 }

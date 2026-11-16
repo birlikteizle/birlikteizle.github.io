@@ -1,0 +1,99 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  broadcastErrorMessage,
+  preferredBroadcastKind,
+  supportsCamera,
+  supportsScreen,
+} from '@/lib/mediaCapture'
+
+interface FakeGlobals {
+  navigator?: unknown
+  window?: unknown
+}
+
+const originalNavigator = (globalThis as FakeGlobals).navigator
+const originalWindow = (globalThis as FakeGlobals).window
+
+function setGlobals({ navigator, window }: FakeGlobals) {
+  // Node 22+ ortamında `navigator` salt-okunur bir tanımlayıcıdır; bu yüzden
+  // doğrudan atama yerine tanımlama kullanılır.
+  Object.defineProperty(globalThis, 'navigator', {
+    value: navigator,
+    configurable: true,
+    writable: true,
+  })
+  Object.defineProperty(globalThis, 'window', {
+    value: window,
+    configurable: true,
+    writable: true,
+  })
+}
+
+afterEach(() => {
+  setGlobals({ navigator: originalNavigator, window: originalWindow })
+})
+
+/** Masaüstü Chrome benzeri ortam: hem ekran hem kamera var. */
+function desktopEnvironment() {
+  setGlobals({
+    navigator: {
+      mediaDevices: {
+        getDisplayMedia: async () => null,
+        getUserMedia: async () => null,
+      },
+    },
+    window: { isSecureContext: true, matchMedia: () => ({ matches: false }) },
+  })
+}
+
+/** Telefon benzeri ortam: ekran yakalama yok, kamera var. */
+function mobileEnvironment() {
+  setGlobals({
+    navigator: {
+      mediaDevices: {
+        getUserMedia: async () => null,
+      },
+    },
+    window: { isSecureContext: true, matchMedia: () => ({ matches: true }) },
+  })
+}
+
+describe('yayın yetenekleri', () => {
+  it('masaüstünde ekran ve kamera desteklenir', () => {
+    desktopEnvironment()
+    expect(supportsScreen()).toBe(true)
+    expect(supportsCamera()).toBe(true)
+    expect(preferredBroadcastKind()).toBe('screen')
+  })
+
+  it('telefonda ekran desteklenmez ama kamera desteklenir', () => {
+    mobileEnvironment()
+    expect(supportsScreen()).toBe(false)
+    expect(supportsCamera()).toBe(true)
+    // Telefonda varsayılan yayın türü kamera olmalı.
+    expect(preferredBroadcastKind()).toBe('camera')
+  })
+
+  it('medya API yoksa ikisi de desteklenmez', () => {
+    setGlobals({ navigator: {}, window: { isSecureContext: true } })
+    expect(supportsScreen()).toBe(false)
+    expect(supportsCamera()).toBe(false)
+  })
+})
+
+describe('broadcastErrorMessage', () => {
+  it('izin reddini açıklar', () => {
+    const error = { name: 'NotAllowedError' }
+    expect(broadcastErrorMessage(error, 'screen')).toContain('izin')
+    expect(broadcastErrorMessage(error, 'camera')).toContain('izin')
+  })
+
+  it('desteklenmeyen cihazda kamera önerir', () => {
+    const message = broadcastErrorMessage({ name: 'NotSupportedError' }, 'screen')
+    expect(message).toContain('kamera')
+  })
+
+  it('bilinmeyen hatada genel mesaj döner', () => {
+    expect(broadcastErrorMessage(new Error('beklenmeyen'), 'camera')).toContain('Yayın başlatılamadı')
+  })
+})

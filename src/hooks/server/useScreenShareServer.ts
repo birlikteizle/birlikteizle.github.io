@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRoomSignals } from '@/hooks/useRoomSignals'
-import type { ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
+import type { BroadcastKind, ScreenShareResult, ScreenShareRole } from '@/hooks/screenShareTypes'
+import {
+  broadcastErrorMessage,
+  captureCamera,
+  captureScreen,
+  supportsCamera,
+  supportsScreen,
+} from '@/lib/mediaCapture'
 
 /**
- * Sunucu modu: ekran paylaşımı sinyalleri SSE kanalından geçer, medya doğrudan
- * iki tarayıcı arasında kurulur (WebRTC).
+ * Sunucu modu yayını: el sıkışma sinyalleri SSE kanalından geçer, medya
+ * doğrudan iki tarayıcı arasında kurulur (WebRTC).
+ *
+ * Masaüstünde ekran/sekme, telefonda kamera yayını kullanılır.
  */
 export function useScreenShareServer(
   roomId: string,
@@ -18,11 +27,15 @@ export function useScreenShareServer(
   const [sharerName, setSharerName] = useState<string | null>(null)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [kind, setKind] = useState<BroadcastKind | null>(null)
+  const [micEnabled, setMicEnabled] = useState(true)
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('environment')
 
   const roleRef = useRef<ScreenShareRole>('idle')
   roleRef.current = role
   const localStreamRef = useRef<MediaStream | null>(null)
   const peerRef = useRef<RTCPeerConnection | null>(null)
+  const videoSenderRef = useRef<RTCRtpSender | null>(null)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
 
   const iceServers = useRef<RTCIceServer[]>(buildIceServers())
@@ -30,6 +43,7 @@ export function useScreenShareServer(
   const closePeer = useCallback(() => {
     const peer = peerRef.current
     peerRef.current = null
+    videoSenderRef.current = null
     pendingCandidatesRef.current = []
     if (!peer) return
     peer.onicecandidate = null
@@ -58,8 +72,8 @@ export function useScreenShareServer(
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === 'failed') {
           setError(
-            'Ekran paylaşımı bağlantısı kurulamadı. Ağ kısıtlaması (simetrik NAT/güvenlik duvarı) ' +
-              'olabilir; bu durumda bir TURN sunucusu gerekir.',
+            'Yayın bağlantısı kurulamadı. Ağ kısıtlaması (simetrik NAT/güvenlik duvarı) olabilir; ' +
+              'bu durumda bir TURN sunucusu gerekir.',
           )
         }
       }
@@ -67,7 +81,10 @@ export function useScreenShareServer(
       if (mode === 'send') {
         const stream = localStreamRef.current
         if (stream) {
-          for (const track of stream.getTracks()) peer.addTrack(track, stream)
+          for (const track of stream.getTracks()) {
+            const sender = peer.addTrack(track, stream)
+            if (track.kind === 'video') videoSenderRef.current = sender
+          }
         }
       } else {
         peer.addTransceiver('video', { direction: 'recvonly' })
@@ -91,68 +108,95 @@ export function useScreenShareServer(
     closePeer()
     setRole('idle')
     setSharerName(null)
+    setKind(null)
     void send('screen-stop', null)
   }, [closePeer, send])
 
-  const startSharing = useCallback(async () => {
-    if (roleRef.current !== 'idle') return
-    setError(null)
+  const startSharing = useCallback(
+    async (requested: BroadcastKind = 'screen') => {
+      if (roleRef.current !== 'idle') return
+      setError(null)
 
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
-      setError('Bu tarayıcı ekran paylaşımını desteklemiyor.')
-      return
-    }
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      setError(
-        'Ekran paylaşımı için güvenli bağlantı (https) gerekir. Sunucuyu alan adı + HTTPS ile ' +
-          'yayınladıktan sonra tekrar dene.',
-      )
-      return
-    }
+      const mode: BroadcastKind = requested === 'screen' && supportsScreen() ? 'screen' : 'camera'
 
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 30, max: 60 } },
-        audio: true,
-      })
+      try {
+        const stream =
+          mode === 'screen'
+            ? await captureScreen()
+            : await captureCamera({ facingMode: cameraFacing, withAudio: true })
 
-      localStreamRef.current = stream
-      setLocalStream(stream)
-      setRole('sharing')
-      setSharerName(displayName)
+        localStreamRef.current = stream
+        setLocalStream(stream)
+        setRole('sharing')
+        setSharerName(displayName)
+        setKind(mode)
+        setMicEnabled(stream.getAudioTracks().length > 0)
 
-      for (const track of stream.getTracks()) {
-        track.onended = () => stopSharing()
+        for (const track of stream.getTracks()) {
+          if (track.kind === 'video' && mode === 'screen') track.onended = () => stopSharing()
+        }
+
+        await send('screen-start', { name: displayName, kind: mode })
+
+        const peer = createPeer('send')
+        const offer = await peer.createOffer()
+        await peer.setLocalDescription(offer)
+        await send('rtc-offer', { sdp: peer.localDescription?.toJSON() ?? null })
+      } catch (caught) {
+        setError(broadcastErrorMessage(caught, mode))
+        localStreamRef.current = null
+        setLocalStream(null)
+        setRole('idle')
+        setSharerName(null)
+        setKind(null)
       }
+    },
+    [cameraFacing, createPeer, displayName, send, stopSharing],
+  )
 
-      await send('screen-start', { name: displayName })
+  const switchCamera = useCallback(async () => {
+    const stream = localStreamRef.current
+    const sender = videoSenderRef.current
+    if (!stream || !sender || roleRef.current !== 'sharing') return
 
-      const peer = createPeer('send')
-      const offer = await peer.createOffer()
-      await peer.setLocalDescription(offer)
-      await send('rtc-offer', { sdp: peer.localDescription?.toJSON() ?? null })
+    const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment'
+    try {
+      const fresh = await captureCamera({ facingMode: nextFacing, withAudio: false })
+      const newTrack = fresh.getVideoTracks()[0]
+      const oldTrack = stream.getVideoTracks()[0]
+      if (!newTrack || !oldTrack) return
+
+      await sender.replaceTrack(newTrack)
+      oldTrack.stop()
+
+      const combined = new MediaStream([newTrack, ...stream.getAudioTracks()])
+      localStreamRef.current = combined
+      setLocalStream(combined)
+      setCameraFacing(nextFacing)
     } catch (caught) {
-      const name = (caught as { name?: string }).name
-      setError(
-        name === 'NotAllowedError'
-          ? 'Ekran paylaşımı iptal edildi ya da izin verilmedi.'
-          : 'Ekran paylaşımı başlatılamadı. Başka bir uygulama ekranı kullanıyor olabilir.',
-      )
-      localStreamRef.current = null
-      setLocalStream(null)
-      setRole('idle')
-      setSharerName(null)
+      setError(broadcastErrorMessage(caught, 'camera'))
     }
-  }, [createPeer, displayName, send, stopSharing])
+  }, [cameraFacing])
+
+  const toggleMic = useCallback(() => {
+    const stream = localStreamRef.current
+    if (!stream) return
+    const tracks = stream.getAudioTracks()
+    if (tracks.length === 0) return
+    const next = !tracks.some((track) => track.enabled)
+    for (const track of tracks) track.enabled = next
+    setMicEnabled(next)
+  }, [])
 
   // --- Uzak taraf: el sıkışma -------------------------------------------------
 
   useEffect(() => {
     return on('screen-start', (signal) => {
       if (roleRef.current === 'sharing') return
-      const data = signal.data as { name?: string } | null
+      const data = signal.data as { name?: string; kind?: BroadcastKind } | null
       setRole('watching')
-      setSharerName(data?.name?.slice(0, 40) ?? 'Partnerin')
+      setSharerName(data?.name?.slice(0, 40) ?? 'Katılımcı')
+      setKind(data?.kind ?? 'screen')
       setError(null)
     })
   }, [on])
@@ -179,7 +223,7 @@ export function useScreenShareServer(
           await peer.setLocalDescription(answer)
           await send('rtc-answer', { sdp: peer.localDescription?.toJSON() ?? null })
         } catch {
-          setError('Ekran paylaşımı el sıkışması tamamlanamadı.')
+          setError('Yayın el sıkışması tamamlanamadı.')
         }
       })()
     })
@@ -198,7 +242,7 @@ export function useScreenShareServer(
           }
           pendingCandidatesRef.current = []
         } catch {
-          setError('Ekran paylaşımı yanıtı uygulanamadı.')
+          setError('Yayın yanıtı uygulanamadı.')
         }
       })()
     })
@@ -226,6 +270,7 @@ export function useScreenShareServer(
       setRemoteStream(null)
       setRole('idle')
       setSharerName(null)
+      setKind(null)
       setError(null)
     })
   }, [closePeer, on])
@@ -250,6 +295,12 @@ export function useScreenShareServer(
     stopSharing,
     isSharing: role === 'sharing',
     isWatching: role === 'watching',
+    kind,
+    canShareScreen: supportsScreen(),
+    canShareCamera: supportsCamera(),
+    switchCamera,
+    micEnabled,
+    toggleMic,
   }
 }
 

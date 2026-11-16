@@ -87,7 +87,8 @@ npm.cmd run preview:p2p      # http://localhost:4173
 | --- | --- | --- |
 | **Senkron oynatıcı** | YouTube, Vimeo, doğrudan video (.mp4/.webm), HLS (.m3u8) | ✅ İki taraf da oynatır/duraklatır/sarar |
 | **Gömülü sayfa (iframe)** | Gömülmeye izin veren web sayfaları (ör. Internet Archive) | ⚠️ Kontrol sitede kalır; "3-2-1 başlat" sayacı kullanılır |
-| **Ekran paylaşımı** | Her şey (DRM'li servisler dahil) | ➖ Film paylaşan tarafta oynar, diğeri sesli-görüntülü izler |
+| **Ekran paylaşımı** (masaüstü) | Her şey (DRM'li servisler dahil) | ➖ Yayını açan tarafta oynar, diğerleri sesli-görüntülü izler |
+| **Kamera yayını** (telefon) | Fiziksel ekran: telefonu TV'ye/monitöre çevir | ➖ Aynı şekilde izlenir; ortam sesi açılıp kapatılabilir |
 
 ### Neden her site gömülü açılamıyor?
 
@@ -98,10 +99,14 @@ tarafından aşılamaz. Bu tür kaynaklar için **ekran paylaşımı modu** kull
 
 ### Ekran paylaşımı notları
 
-- Film oynatan sekmeyi paylaş: ses de gelir (tarayıcı destekliyorsa).
+- **Masaüstünde:** "Ekran/sekme paylaş" → açılan pencerede filmi oynatan sekmeyi seç (sekme
+  paylaşımında ses de gelir).
+- **Telefonda:** Tarayıcılar web sayfasının ekranı yakalamasına izin **vermez**; bu yüzden odada
+  telefona özel **"Kamera yayını"** düğmesi görünür. Telefonu ekrana/TV'ye çevirip yayın açabilir,
+  mikrofonu kapatabilir, ön/arka kamerayı değiştirebilirsin.
 - Görüntü sunucudan geçmez; iki tarayıcı arasında doğrudan kurulur (P2P).
-- **HTTPS gerekir.** Tarayıcılar ekran yakalamayı yalnızca güvenli bağlamda (https veya localhost)
-  verir. Yayında alan adı + HTTPS kullanın (`deploy/oracle-cloud.md` bölüm 8).
+- **HTTPS gerekir.** Tarayıcılar kamera ve ekran yakalamayı yalnızca güvenli bağlamda (https veya
+  localhost) verir. GitHub Pages ve HTTPS'li kurulumlar bu şartı sağlar.
 - Kısıtlı ağlarda (simetrik NAT, kurumsal güvenlik duvarı) STUN yetmez; `VITE_TURN_*` değişkenleriyle
   bir TURN sunucusu tanımlanır.
 
@@ -270,7 +275,9 @@ gönderir, SSE snapshot'ını doğrular ve üçüncü kişinin reddedildiğini k
 - Uygulama kendi sunucunda çalışır. İnternet üzerinden izlemek için sunucuyu bir makinede
   yayınlayıp (ters proxy/tünel) `VITE_API_BASE` ayarlaman gerekir.
 - DRM korumalı platformlar (Netflix, Disney+, Prime Video vb.) gömülü oynatılamaz; bunlar için
-  ekran paylaşımı modunu kullan.
+  ekran paylaşımı (masaüstü) veya kamera yayını (telefon) kullanılır.
+- **Telefonlar ekran paylaşamaz:** iOS ve Android tarayıcıları web sayfasına ekran erişimi vermez.
+  Bu bir tarayıcı güvenlik kuralıdır; telefonda kamera yayını sunulur.
 - `X-Frame-Options` / CSP gönderen siteler iframe olarak açılmaz; tarayıcı güvenliği gereği bu
   aşılamaz.
 - Ekran paylaşımı HTTPS gerektirir ve çok kısıtlı ağlarda TURN sunucusu olmadan kurulamayabilir.

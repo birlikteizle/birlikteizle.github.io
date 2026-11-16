@@ -1,8 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Maximize2, Minimize2, MonitorUp, PhoneOff, Volume2, VolumeX } from 'lucide-react'
+import {
+  Loader2,
+  Maximize2,
+  Minimize2,
+  MonitorUp,
+  PhoneOff,
+  RefreshCcw,
+  Smartphone,
+  Volume2,
+  VolumeX,
+  Video,
+  Mic,
+  MicOff,
+} from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/context/ToastContext'
 import { useScreenShare } from '@/hooks/useScreenShare'
+import type { BroadcastKind } from '@/hooks/screenShareTypes'
+import { isSecure } from '@/lib/mediaCapture'
 import { cn } from '@/lib/utils'
 
 interface ScreenSharePanelProps {
@@ -14,8 +29,10 @@ interface ScreenSharePanelProps {
 }
 
 /**
- * Ekran/sekme paylaşımıyla "her siteden birlikte izleme" modu.
- * Gömülü oynatmayı engelleyen siteler için tek sağlam yöntem budur.
+ * Yayın modu: "her siteden birlikte izleme".
+ *
+ * Masaüstünde ekran/sekme paylaşılır. Telefonlarda tarayıcılar ekranı
+ * paylaşmaya izin vermediği için kamera yayını sunulur (telefonu ekrana çevir).
  */
 export function ScreenSharePanel({
   roomId,
@@ -34,6 +51,12 @@ export function ScreenSharePanel({
     stopSharing,
     isSharing,
     isWatching,
+    kind,
+    canShareScreen,
+    canShareCamera,
+    switchCamera,
+    micEnabled,
+    toggleMic,
   } = useScreenShare(roomId, uid, displayName)
 
   const stageRef = useRef<HTMLDivElement>(null)
@@ -45,6 +68,7 @@ export function ScreenSharePanel({
 
   const stream = isWatching ? remoteStream : localStream
   const active = isSharing || isWatching
+  const isCamera = kind === 'camera'
 
   useEffect(() => {
     const video = videoRef.current
@@ -94,20 +118,25 @@ export function ScreenSharePanel({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
-  const handleStart = useCallback(async () => {
-    setStarting(true)
-    pushToast({
-      kind: 'info',
-      title: 'Kaynak seç',
-      description:
-        'Açılan pencerede filmi oynatan sekmeyi seç. "Sekme paylaşımı" seçersen ses de gelir.',
-    })
-    try {
-      await startSharing()
-    } finally {
-      setStarting(false)
-    }
-  }, [pushToast, startSharing])
+  const handleStart = useCallback(
+    async (broadcastKind: BroadcastKind) => {
+      setStarting(true)
+      pushToast({
+        kind: 'info',
+        title: broadcastKind === 'screen' ? 'Kaynak seç' : 'Kamera izni',
+        description:
+          broadcastKind === 'screen'
+            ? 'Açılan pencerede filmi oynatan sekmeyi seç. "Sekme paylaşımı" seçersen ses de gelir.'
+            : 'Kamera ve mikrofon izni ver. Telefonu ekrana/TV\'ye çevirip yayın açabilirsin.',
+      })
+      try {
+        await startSharing(broadcastKind)
+      } finally {
+        setStarting(false)
+      }
+    },
+    [pushToast, startSharing],
+  )
 
   const handleToggleMute = useCallback(() => {
     setMuted((current) => {
@@ -130,31 +159,72 @@ export function ScreenSharePanel({
   }, [pushToast])
 
   if (!active) {
+    const insecure = !isSecure()
+
     return (
       <section className="panel mb-3 p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
               <MonitorUp className="h-4 w-4 text-brand-300" />
-              Ekran paylaşımı ile birlikte izle
+              Yayın açarak birlikte izle
             </h2>
             <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-zinc-500">
-              Netflix, Disney+ ya da herhangi bir film sitesi tarayıcı güvenliği nedeniyle gömülü
-              oynatılamaz. Bu modda filmi kendi sekmende açıp <strong className="text-zinc-400">sekme
-              olarak</strong> paylaşırsın; partnerin sesli-görüntülü aynı anda izler ve sohbet açık kalır.
+              Netflix, Disney+ ya da herhangi bir film sitesi güvenlik nedeniyle gömülü oynatılamaz.
+              Bu modda filmi kendi tarafında açıp yayınlarsın; diğerleri sesli-görüntülü izler ve
+              sohbet açık kalır.
+            </p>
+            <p className="mt-2 flex items-start gap-1.5 text-[10.5px] leading-relaxed text-zinc-500">
+              <Smartphone className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-600" />
+              <span>
+                {canShareScreen
+                  ? 'Telefonda kullanacaksan "Kamera yayını" seç: telefon tarayıcıları ekran paylaşımına izin vermez, ama telefonu ekrana çevirip yayın açabilirsin.'
+                  : 'Telefon tarayıcıları ekran paylaşımını desteklemez. Kamera yayını ile telefonunu ekrana/TV\'ye çevirip yayın açabilirsin.'}
+              </span>
             </p>
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            loading={starting}
-            disabled={!isOnline || starting}
-            onClick={() => void handleStart()}
-          >
-            {!starting ? <MonitorUp className="h-3.5 w-3.5" /> : null}
-            Ekran/sekme paylaş
-          </Button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {canShareScreen ? (
+              <Button
+                variant="primary"
+                size="sm"
+                loading={starting}
+                disabled={!isOnline || starting}
+                onClick={() => void handleStart('screen')}
+              >
+                {!starting ? <MonitorUp className="h-3.5 w-3.5" /> : null}
+                Ekran/sekme paylaş
+              </Button>
+            ) : null}
+
+            {canShareCamera ? (
+              <Button
+                variant={canShareScreen ? 'secondary' : 'primary'}
+                size="sm"
+                disabled={!isOnline || starting}
+                onClick={() => void handleStart('camera')}
+              >
+                <Video className="h-3.5 w-3.5" />
+                Kamera yayını
+              </Button>
+            ) : null}
+          </div>
         </div>
+
+        {!canShareScreen && !canShareCamera ? (
+          <p className="mt-3 rounded-lg border border-amber-400/15 bg-amber-400/[0.06] px-2.5 py-2 text-[11px] leading-relaxed text-amber-200/90">
+            Bu tarayıcı ne ekran paylaşımını ne de kamera yayınını destekliyor. Güncel bir Chrome,
+            Edge veya Safari kullanmayı dene.
+          </p>
+        ) : null}
+
+        {insecure ? (
+          <p className="mt-3 rounded-lg border border-amber-400/15 bg-amber-400/[0.06] px-2.5 py-2 text-[11px] leading-relaxed text-amber-200/90">
+            Yayın için güvenli bağlantı (https) gerekir. Adresi <code>https://</code> ile açtığından
+            emin ol.
+          </p>
+        ) : null}
 
         {error ? (
           <p className="mt-3 rounded-lg border border-amber-400/15 bg-amber-400/[0.06] px-2.5 py-2 text-[11px] leading-relaxed text-amber-200/90">
@@ -177,12 +247,40 @@ export function ScreenSharePanel({
           />
           <span className="truncate text-zinc-300">
             {isSharing
-              ? 'Ekranını paylaşıyorsun — partnerin sesli-görüntülü izliyor'
-              : `${sharerName ?? 'Partnerin'} ekranını paylaşıyor`}
+              ? isCamera
+                ? 'Kamera yayını yapıyorsun — diğerleri sesli-görüntülü izliyor'
+                : 'Ekranını paylaşıyorsun — diğerleri sesli-görüntülü izliyor'
+              : `${sharerName ?? 'Katılımcı'} ${isCamera ? 'kamera yayını' : 'ekranını'} paylaşıyor`}
           </span>
         </p>
 
         <div className="flex items-center gap-1.5">
+          {isSharing && isCamera ? (
+            <>
+              <button
+                type="button"
+                onClick={toggleMic}
+                aria-label={micEnabled ? 'Mikrofonu kapat' : 'Mikrofonu aç'}
+                title={micEnabled ? 'Mikrofonu kapat' : 'Mikrofonu aç'}
+                className={cn(
+                  'grid h-8 w-8 place-items-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400',
+                  micEnabled ? 'text-zinc-300 hover:bg-white/10 hover:text-white' : 'bg-rose-500/20 text-rose-300',
+                )}
+              >
+                {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => void switchCamera()}
+                aria-label="Kamerayı çevir"
+                title="Ön/arka kamerayı değiştir"
+                className="grid h-8 w-8 place-items-center rounded-lg text-zinc-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                <RefreshCcw className="h-4 w-4" />
+              </button>
+            </>
+          ) : null}
+
           {isWatching ? (
             <button
               type="button"
@@ -208,7 +306,7 @@ export function ScreenSharePanel({
           {isSharing ? (
             <Button variant="ghost" size="sm" onClick={stopSharing}>
               <PhoneOff className="h-3.5 w-3.5" />
-              Paylaşımı durdur
+              Yayını durdur
             </Button>
           ) : null}
         </div>
@@ -217,7 +315,7 @@ export function ScreenSharePanel({
       <div ref={stageRef} className="relative aspect-video w-full bg-black">
         <video
           ref={videoRef}
-          className="h-full w-full"
+          className={cn('h-full w-full', isCamera && isSharing && 'object-cover')}
           autoPlay
           playsInline
           muted={isSharing || muted}
@@ -254,10 +352,12 @@ export function ScreenSharePanel({
 
       <p className="px-3 py-2 text-[10px] leading-relaxed text-zinc-600 sm:px-4">
         {isSharing
-          ? 'Ses, paylaştığın sekmenin sesidir. Tarayıcının kendi "Paylaşımı durdur" düğmesini de kullanabilirsin.'
+          ? isCamera
+            ? 'Mikrofon düğmesiyle ortam sesini kapatabilir, kamerayı ön/arka olarak değiştirebilirsin.'
+            : 'Ses, paylaştığın sekmenin sesidir. Tarayıcının kendi "Paylaşımı durdur" düğmesini de kullanabilirsin.'
           : partnerName
-            ? 'Görüntü doğrudan partnerinin cihazından gelir; sunucudan geçmez.'
-            : 'Görüntü doğrudan partnerinin cihazından gelir.'}
+            ? 'Görüntü doğrudan paylaşan cihazdan gelir; sunucudan geçmez.'
+            : 'Görüntü doğrudan paylaşan cihazdan gelir.'}
       </p>
     </section>
   )

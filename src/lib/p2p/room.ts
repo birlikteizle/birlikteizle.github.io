@@ -223,6 +223,11 @@ class P2PRoom {
     if (stream) this.room.removeStream(stream)
   }
 
+  /** Kamera değiştirirken mevcut video kanalını yenisiyle değiştirir. */
+  async replaceVideoTrack(oldTrack: MediaStreamTrack, newTrack: MediaStreamTrack): Promise<void> {
+    await this.room.replaceTrack(oldTrack, newTrack)
+  }
+
   destroy(): void {
     if (this.destroyed) return
     this.destroyed = true
