@@ -23,7 +23,13 @@ export interface RoomInfo {
   status: 'active'
   /** Odanın alabileceği en fazla kişi sayısı. */
   capacity: number
+  /** Herkese açık odalar (ileride) listelenebilir; özel odalar listelenmez. */
+  visibility: RoomVisibility
+  /** Yöneticinin yetki verdiği kişiler (oynatmayı onlar da yönetebilir). */
+  managers: string[]
 }
+
+export type RoomVisibility = 'public' | 'private'
 
 export interface RoomMember {
   uid: string

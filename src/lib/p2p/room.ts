@@ -1,6 +1,7 @@
 import type { ChatMessage, PlaybackState, RoomMember } from '@/types'
 import { joinRoom, type MessageAction, type Room } from 'trystero'
 import { normalizeCapacity } from '@/lib/capacity'
+import { readRoomMetaFromLocation } from '@/lib/roomLink'
 import { readRoomCapacityFromLocation } from '@/lib/roomLink'
 
 const APP_ID = 'birlikte-izle-p2p-v1'
@@ -68,20 +69,28 @@ function friendlyError(code: string, fallback: string): string {
 
 export interface HelloPayload {
   member: RoomMember
+  /** Yönetici tanıtım gönderdiğinde güncel yetki listesi de taşınır. */
+  managers?: string[]
 }
 
 type Wire =
   | { t: 'hi'; hello: HelloPayload }
-  | { t: 'st'; playback: PlaybackState }
+  | { t: 'st'; playback: PlaybackState; from: string }
   | { t: 'msg'; message: ChatMessage }
   | { t: 'hist'; messages: ChatMessage[] }
+  | { t: 'pm'; managers: string[]; from: string }
+  | { t: 'vs'; uid: string; name: string; mic: boolean; cam: boolean }
   | { t: 'bye'; uid: string }
 
 export type P2PEvent =
   | { type: 'hello'; hello: HelloPayload; peerId: string }
-  | { type: 'state'; playback: PlaybackState }
+  | { type: 'state'; playback: PlaybackState; from: string }
   | { type: 'chat'; message: ChatMessage }
   | { type: 'history'; messages: ChatMessage[] }
+  | { type: 'permissions'; managers: string[]; from: string }
+  | { type: 'voice-stream'; stream: MediaStream; peerId: string }
+  | { type: 'voice-gone'; peerId: string }
+  | { type: 'voice-state'; uid: string; name: string; mic: boolean; cam: boolean }
   | { type: 'bye'; uid: string }
   | { type: 'peers'; peerIds: string[] }
   | { type: 'stream'; stream: MediaStream; peerId: string }
@@ -100,16 +109,21 @@ type Listener = (event: P2PEvent) => void
 class P2PRoom {
   readonly roomId: string
   readonly capacity: number
+  /** Odanın yöneticisi (davet bağlantısından gelir). Boşsa kısıt uygulanmaz. */
+  readonly adminUid: string
+  private managers: string[] = []
   private room: Room
   private action: MessageAction<Wire>
   private listeners = new Set<Listener>()
   private unsubs: Array<() => void> = []
   private localStream: MediaStream | null = null
+  private voiceStream: MediaStream | null = null
   private destroyed = false
 
   constructor(roomId: string, capacity: number) {
     this.roomId = roomId
     this.capacity = capacity
+    this.adminUid = readRoomMetaFromLocation().adminUid
     this.room = joinRoom(
       {
         appId: APP_ID,
@@ -125,8 +139,17 @@ class P2PRoom {
         this.handleWire(data, context.peerId)
       }),
       this.room.onPeerJoin(() => this.emitPeers()),
-      this.room.onPeerLeave(() => this.emitPeers()),
+      this.room.onPeerLeave((context) => {
+        this.emitPeers()
+        this.emit({ type: 'voice-gone', peerId: context.peerId })
+      }),
       this.room.onPeerStream((stream, context) => {
+        // Akışlar metadata ile ayrılır: sesli sohbet mi, ekran paylaşımı mı?
+        const meta = context.metadata as { voice?: boolean } | undefined
+        if (meta?.voice) {
+          this.emit({ type: 'voice-stream', stream, peerId: context.peerId })
+          return
+        }
         this.emit({ type: 'stream', stream, peerId: context.peerId })
       }),
       this.room.onError((error) => {
@@ -145,13 +168,28 @@ class P2PRoom {
         this.emit({ type: 'hello', hello: data.hello, peerId })
         break
       case 'st':
-        this.emit({ type: 'state', playback: data.playback })
+        this.emit({ type: 'state', playback: data.playback, from: data.from })
         break
       case 'msg':
         this.emit({ type: 'chat', message: data.message })
         break
       case 'hist':
         this.emit({ type: 'history', messages: data.messages })
+        break
+      case 'pm':
+        // Yetkiyi yalnızca oda yöneticisi değiştirebilir.
+        if (this.adminUid && data.from !== this.adminUid) break
+        this.setManagers(data.managers)
+        this.emit({ type: 'permissions', managers: this.managers, from: data.from })
+        break
+      case 'vs':
+        this.emit({
+          type: 'voice-state',
+          uid: data.uid,
+          name: data.name,
+          mic: data.mic,
+          cam: data.cam,
+        })
         break
       case 'bye':
         this.emit({ type: 'bye', uid: data.uid })
@@ -188,9 +226,8 @@ class P2PRoom {
   sendHello(hello: HelloPayload): void {
     void this.action.send({ t: 'hi', hello }).catch(() => undefined)
   }
-
-  sendState(playback: PlaybackState): void {
-    void this.action.send({ t: 'st', playback }).catch(() => undefined)
+  sendState(playback: PlaybackState, from: string): void {
+    void this.action.send({ t: 'st', playback, from }).catch(() => undefined)
   }
 
   sendChat(message: ChatMessage): void {
@@ -212,9 +249,52 @@ class P2PRoom {
     void this.action.send({ t: 'bye', uid }).catch(() => undefined)
   }
 
+  setManagers(managers: string[]): void {
+    this.managers = Array.isArray(managers) ? [...managers] : []
+  }
+
+  getManagers(): string[] {
+    return [...this.managers]
+  }
+
+  /** Yönetici yetki verdi mi? Yönetici bilinmiyorsa kısıt uygulanmaz. */
+  canManageFrom(uid: string): boolean {
+    if (!this.adminUid) return true
+    if (uid === this.adminUid) return true
+    return this.managers.includes(uid)
+  }
+
+  /** Yönetici yetki listesini değiştirdiğinde tüm odaya duyurur. */
+  broadcastManagers(managers: string[], from: string): void {
+    this.setManagers(managers)
+    void this.action.send({ t: 'pm', managers, from }).catch(() => undefined)
+  }
+
   async addStream(stream: MediaStream): Promise<void> {
     this.localStream = stream
-    await this.room.addStream(stream)
+    await this.room.addStream(stream, { metadata: { voice: false } })
+  }
+
+  /** Sesli sohbet akışını paylaşır (ekran paylaşımından ayrı etiketlenir). */
+  async addVoiceStream(stream: MediaStream): Promise<void> {
+    this.voiceStream = stream
+    await this.room.addStream(stream, { metadata: { voice: true } })
+  }
+
+  removeVoiceStream(): void {
+    const stream = this.voiceStream
+    this.voiceStream = null
+    if (stream) this.room.removeStream(stream)
+  }
+
+  /** Mikrofon/kamera durumunu odaya duyurur. */
+  sendVoiceState(uid: string, name: string, mic: boolean, cam: boolean): void {
+    void this.action.send({ t: 'vs', uid, name, mic, cam }).catch(() => undefined)
+  }
+
+  /** Sesli sohbetten ayrıldığımızı duyurur. */
+  sendVoiceLeave(uid: string): void {
+    this.sendVoiceState(uid, '', false, false)
   }
 
   removeStream(): void {
@@ -234,6 +314,7 @@ class P2PRoom {
     for (const unsubscribe of this.unsubs) unsubscribe()
     this.unsubs = []
     this.removeStream()
+    this.removeVoiceStream()
     void this.room.leave().catch(() => undefined)
     this.listeners.clear()
   }

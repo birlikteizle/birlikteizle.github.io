@@ -20,6 +20,8 @@ import { usePlayback } from '@/hooks/usePlayback'
 import { useMessages } from '@/hooks/useMessages'
 import { PageShell } from '@/components/layout/PageShell'
 import { RoomHeader } from '@/components/room/RoomHeader'
+import { MemberBar } from '@/components/room/MemberBar'
+import { VoicePanel } from '@/components/room/VoicePanel'
 import { VideoStage } from '@/components/room/VideoStage'
 import { SourceBar } from '@/components/room/SourceBar'
 import { ScreenSharePanel } from '@/components/room/ScreenSharePanel'
@@ -65,6 +67,8 @@ function RoomGate({ roomId, user }: { roomId: string | undefined; user: AppUser 
         info={session.info}
         members={session.members}
         presence={session.presence}
+        canManage={session.canManage}
+        setManager={session.setManager}
       />
     )
   }
@@ -87,12 +91,16 @@ function RoomReady({
   info,
   members,
   presence,
+  canManage,
+  setManager,
 }: {
   roomId: string
   user: AppUser
   info: RoomInfo | null
   members: RoomMembers
   presence: RoomPresenceMap
+  canManage: boolean
+  setManager: (uid: string, grant: boolean) => Promise<void>
 }) {
   const navigate = useNavigate()
   const { pushToast } = useToast()
@@ -130,6 +138,11 @@ function RoomReady({
   const othersOnline = memberList.filter(
     (member) => member.uid !== user.uid && presence[member.uid]?.online,
   ).length
+
+  /** Oda yöneticisinin adı (yönetici olmayanlara gösterilir). */
+  const adminName =
+    (info?.createdBy ? memberList.find((member) => member.uid === info.createdBy)?.displayName : '') ||
+    null
 
   const parsedPlayback = useMemo(
     () => (playback?.sourceUrl ? parseVideoUrl(playback.sourceUrl) : null),
@@ -200,6 +213,31 @@ function RoomReady({
         onInvite={() => setInviteOpen(true)}
         onLeave={handleLeave}
       />
+
+      {memberList.length > 1 ? (
+        <MemberBar
+          members={memberList}
+          presence={presence}
+          selfUid={user.uid}
+          adminUid={info?.createdBy ?? ''}
+          managers={info?.managers ?? []}
+          canGrant={canManage && info?.createdBy === user.uid}
+          onToggleManager={setManager}
+        />
+      ) : null}
+
+      {!canManage && adminName ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-400">
+          <span className="inline-flex items-start gap-2">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300/80" />
+            <span>
+              Bu odanın yöneticisi <strong className="font-semibold text-zinc-200">{adminName}</strong>.
+              Oynat/duraklat, sarma ve kaynak değiştirme yalnızca yöneticide; sen izleyip sohbet edebilir,
+              ses ile kameranı açabilirsin.
+            </span>
+          </span>
+        </div>
+      ) : null}
 
       {isP2P ? (
         <div className="mb-3 flex items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-400">
@@ -312,6 +350,13 @@ function RoomReady({
 
       <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1fr)_366px] lg:items-start">
         <div className={cn('min-w-0 space-y-3', activeTab === 'chat' && 'hidden lg:block')}>
+          <VoicePanel
+            roomId={roomId}
+            uid={user.uid}
+            displayName={user.displayName?.trim() || 'Kullanıcı'}
+            isOnline={isOnline}
+          />
+
           <ScreenSharePanel
             roomId={roomId}
             uid={user.uid}
@@ -323,6 +368,7 @@ function RoomReady({
           <VideoStage
             roomId={roomId}
             uid={user.uid}
+            canManage={canManage}
             playback={playback}
             loading={playbackLoading}
             playbackError={playbackError}
@@ -338,6 +384,7 @@ function RoomReady({
             playback={playback}
             publish={publish}
             isOnline={isOnline}
+            canManage={canManage}
             focusToken={focusToken}
           />
         </div>
@@ -363,6 +410,8 @@ function RoomReady({
         roomId={roomId}
         memberCount={memberList.length}
         capacity={info?.capacity ?? DEFAULT_CAPACITY}
+        adminUid={info?.createdBy ?? ''}
+        visibility={info?.visibility ?? 'public'}
       />
     </PageShell>
   )

@@ -7,8 +7,10 @@ import {
   Clapperboard,
   ExternalLink,
   Film,
+  Globe,
   History,
   Link2,
+  Lock,
   MessageCircle,
   MonitorPlay,
   Play,
@@ -29,7 +31,7 @@ import { PageShell } from '@/components/layout/PageShell'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { createRoom } from '@/services/rooms'
-import { CAPACITY_OPTIONS, DEFAULT_CAPACITY } from '@/lib/capacity'
+import { CAPACITY_OPTIONS, DEFAULT_CAPACITY, VISIBILITY_OPTIONS } from '@/lib/capacity'
 import { isP2P } from '@/lib/mode'
 import { mapApiError } from '@/lib/errors'
 import { formatRelative } from '@/lib/format'
@@ -37,7 +39,7 @@ import { providerDisplayName, parseVideoUrl, type VideoParseFailure } from '@/li
 import { parseRoomReference, shortRoomCode } from '@/lib/roomLink'
 import { saveRecentRoom } from '@/lib/recentRooms'
 import { safeExternalUrl } from '@/lib/utils'
-import type { VideoProvider } from '@/types'
+import type { RoomVisibility, VideoProvider } from '@/types'
 
 const STEPS = [
   {
@@ -112,6 +114,7 @@ export function HomePage() {
   const [videoUrl, setVideoUrl] = useState('')
   const [videoFailure, setVideoFailure] = useState<VideoParseFailure | null>(null)
   const [capacity, setCapacity] = useState<number>(DEFAULT_CAPACITY)
+  const [visibility, setVisibility] = useState<RoomVisibility>('public')
   const [creating, setCreating] = useState(false)
   const [inviteInput, setInviteInput] = useState('')
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -152,7 +155,7 @@ export function HomePage() {
 
     setCreating(true)
     try {
-      const roomId = await createRoom(user, source, capacity)
+      const roomId = await createRoom(user, source, capacity, visibility)
       saveRecentRoom({
         id: roomId,
         provider: source?.provider ?? 'none',
@@ -161,10 +164,17 @@ export function HomePage() {
       pushToast({
         kind: 'success',
         title: 'Oda oluşturuldu',
-        description: `Kapasite ${capacity} kişi. Davet bağlantısını paylaşarak beklemeye başlayabilirsin.`,
+        description: `${capacity} kişilik ${visibility === 'private' ? 'özel' : 'herkese açık'} oda. Yönetici sensin.`,
       })
-      // Sunucusuz modda kapasite davet bağlantısıyla taşınır.
-      navigate(isP2P ? `/room/${roomId}?k=${capacity}` : `/room/${roomId}`)
+      // Sunucusuz modda oda ayarları davet bağlantısıyla taşınır.
+      const params = new URLSearchParams()
+      if (isP2P) {
+        params.set('k', String(capacity))
+        if (user?.uid) params.set('a', user.uid)
+        if (visibility === 'private') params.set('priv', '1')
+      }
+      const query = params.toString()
+      navigate(`/room/${roomId}${query ? `?${query}` : ''}`)
     } catch (error) {
       pushToast({
         kind: 'error',
@@ -296,6 +306,32 @@ export function HomePage() {
                     {CAPACITY_OPTIONS.map((option) => (
                       <option key={option} value={option} className="bg-night-900 text-zinc-100">
                         {option} kişi
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 sm:w-auto">
+                  {visibility === 'private' ? (
+                    <Lock className="h-4 w-4 shrink-0 text-zinc-500" />
+                  ) : (
+                    <Globe className="h-4 w-4 shrink-0 text-zinc-500" />
+                  )}
+                  <select
+                    id="room-visibility"
+                    value={visibility}
+                    onChange={(event) => setVisibility(event.target.value as RoomVisibility)}
+                    aria-label="Oda görünürlüğü"
+                    title={
+                      visibility === 'private'
+                        ? VISIBILITY_OPTIONS[1].hint
+                        : VISIBILITY_OPTIONS[0].hint
+                    }
+                    className="h-10 cursor-pointer appearance-none rounded-lg bg-transparent pr-1 text-[12px] font-semibold text-zinc-100 focus-visible:outline-none"
+                  >
+                    {VISIBILITY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-night-900 text-zinc-100">
+                        {option.label}
                       </option>
                     ))}
                   </select>

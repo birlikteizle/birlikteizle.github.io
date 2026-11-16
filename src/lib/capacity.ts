@@ -6,6 +6,8 @@
  * taşınır ve eşleşme ağı bu sayıya göre sınırlanır.
  */
 
+import type { RoomVisibility } from '@/types'
+
 export const MIN_CAPACITY = 2
 export const MAX_CAPACITY = 50
 export const DEFAULT_CAPACITY = 2
@@ -30,3 +32,33 @@ export function occupancyLabel(count: number, capacity: number): string {
  * doğrudan bağlandığı için kalabalık odalarda bağlantı sayısı hızla artar.
  */
 export const P2P_CROWDED_THRESHOLD = 8
+
+/* ------------------------------------------------------------------ */
+/* Oda görünürlüğü                                                     */
+/* ------------------------------------------------------------------ */
+
+export const VISIBILITY_OPTIONS: Array<{ value: RoomVisibility; label: string; hint: string }> = [
+  {
+    value: 'public',
+    label: 'Herkese açık',
+    hint: 'Oda bilgisi listelenebilir; davet bağlantısı yine gerekir.',
+  },
+  {
+    value: 'private',
+    label: 'Özel',
+    hint: 'Oda hiçbir listede görünmez; yalnızca davet bağlantısıyla girilir.',
+  },
+]
+
+export function normalizeVisibility(
+  value: unknown,
+  fallback: RoomVisibility = 'public',
+): RoomVisibility {
+  if (value === 'private') return 'private'
+  if (value === 'public') return 'public'
+  return fallback
+}
+
+export function visibilityLabel(value: RoomVisibility): string {
+  return value === 'private' ? 'Özel oda' : 'Herkese açık'
+}

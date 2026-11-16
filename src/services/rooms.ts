@@ -1,4 +1,4 @@
-import type { AppUser, VideoSource } from '@/types'
+import type { AppUser, RoomVisibility, VideoSource } from '@/types'
 import { api } from '@/lib/api'
 import { isP2P } from '@/lib/mode'
 
@@ -13,6 +13,7 @@ export async function createRoom(
   _user: AppUser | null,
   source: VideoSource | null,
   capacity?: number,
+  visibility?: RoomVisibility,
 ): Promise<string> {
   if (isP2P) {
     const { createRoomId, stashInitialSource } = await import('@/lib/p2p/room')
@@ -28,7 +29,7 @@ export async function createRoom(
     return roomId
   }
 
-  const { roomId } = await api.createRoom(source, capacity)
+  const { roomId } = await api.createRoom(source, capacity, visibility)
   return roomId
 }
 

@@ -11,9 +11,46 @@
 - **Kalıcı oda:** Oda, mesajlar ve son oynatma konumu `.data/state.json` içinde saklanır (sunucu modu).
 - **Ayarlanabilir kapasite:** Oda oluştururken 2-50 kişi arasında seçim; davet bağlantısı kapasiteyi taşır.
 - **Sohbet:** Oda içi mesajlar aynı gerçek zamanlı kanaldan iletilir.
+- **Yetkilendirme:** Odayı açan **yönetici** olur; istediği kişiye oynatma yetkisi verebilir.
+- **Sesli sohbet:** Mikrofon ve kamera (kapalı başlar), mute ve kamera aç/kapa düğmeleriyle.
+- **Public / özel oda:** Oda görünürlüğü seçilir; özel odalar listelenmez.
 - **Ekran paylaşımı (WebRTC):** Gömülü oynatmayı engelleyen sitelerden bile (Netflix, film siteleri)
   sesli-görüntülü birlikte izleme.
 - **İki çalışma modu:** kendi sunucun (kalıcı) veya **sunucusuz P2P** (GitHub Pages'te çalışır).
+
+---
+
+## Yetkiler ve roller
+
+Odayı oluşturan kişi **yönetici** olur. Yönetici:
+
+- oynat/duraklat, sarma, hız ve kaynak değiştirmeyi yapar,
+- odadaki katılımcı listesinden **başkalarına yetki verebilir** ("Yetki ver"),
+- verdiği yetkiyi geri alabilir ("Yetkiyi al"),
+- odayı kapatabilir.
+
+Yetki verilen kişiler oynatmayı yönetebilir; diğerleri izler, sohbet eder ve sesli sohbete
+katılabilir. Ses seviyesi, altyazı ve tam ekran herkes için **yereldir**.
+
+> Sunucusuz (P2P) modda yönetici, davet bağlantısındaki `?a=` kimliğiyle eşleşen kullanıcıdır.
+> Yetkiyi yalnızca o kişi değiştirebilir; yetki listesi bağlantıyla ve oda içi mesajlarla taşınır.
+
+## Sesli sohbet
+
+Odadaki **"Sesli sohbet → Sese katıl"** düğmesiyle katılınır. Mikrofon ve kamera **kapalı**
+başlar; açtığında tarayıcı izin ister.
+
+- 🎤 Mikrofonu kapat/aç · 🎥 Kamerayı aç/kapat
+- Görüntü ve ses doğrudan cihazlar arasında gider (sunucudan geçmez)
+- Sekme arka plana alınırsa tarayıcı mikrofonu kısıtlayabilir; odaya dönünce devam eder
+
+## Public ve özel odalar
+
+Oda oluştururken **Herkese açık** veya **Özel** seçilir.
+
+- **Özel:** Oda hiçbir listede görünmez; yalnızca davet bağlantısıyla girilir.
+- **Herkese açık:** Oda bilgisi listelenebilir. (Aktif oda listesi için sunucu gerekir; sunucusuz
+  modda liste yoktur, çünkü P2P'de başkalarının odaları görülemez.)
 
 ---
 

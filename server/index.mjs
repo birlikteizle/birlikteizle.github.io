@@ -16,6 +16,7 @@ import {
   getRoomSnapshot,
   isMember,
   joinRoom,
+  setRoomManager,
   RoomError,
 } from './rooms.mjs'
 
@@ -211,7 +212,7 @@ async function handleApi(req, res, url) {
     const user = requireUser(req)
     const body = await readJson(req)
     const source = body.source ?? null
-    const roomId = createRoom(state, user, source, body.capacity)
+    const roomId = createRoom(state, user, source, body.capacity, body.visibility)
     store.save()
     return sendJson(res, 201, { roomId })
   }
@@ -278,7 +279,7 @@ async function handleApi(req, res, url) {
     return
   }
 
-  const roomMatch = /^\/api\/rooms\/([A-Za-z0-9_-]{16,32})(\/(join|playback|messages|ping|leave|signal))?$/.exec(
+  const roomMatch = /^\/api\/rooms\/([A-Za-z0-9_-]{16,32})(\/(join|playback|messages|ping|leave|signal|managers))?$/.exec(
     path,
   )
 
@@ -357,6 +358,17 @@ async function handleApi(req, res, url) {
       const signal = { type, data: body.data ?? null, from: user.uid, at: Date.now() }
       broadcast(roomId, 'signal', signal)
       return sendJson(res, 202, { ok: true, at: signal.at })
+    }
+
+    if (method === 'POST' && action === 'managers') {
+      requireRoom(roomId, user)
+      const body = await readJson(req)
+      const targetUid = String(body.uid ?? '')
+      const grant = body.grant !== false
+      const managers = setRoomManager(state, roomId, user, targetUid, grant)
+      store.save()
+      broadcast(roomId, 'info', { info: state.rooms[roomId].info })
+      return sendJson(res, 200, { ok: true, managers })
     }
 
     if (method === 'POST' && action === 'leave') {

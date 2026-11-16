@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input'
 import { useToast } from '@/context/ToastContext'
 import { buildRoomUrl, shortRoomCode } from '@/lib/roomLink'
 import { copyText } from '@/lib/utils'
+import type { RoomVisibility } from '@/types'
 
 interface InviteModalProps {
   open: boolean
@@ -13,6 +14,9 @@ interface InviteModalProps {
   roomId: string
   memberCount: number
   capacity: number
+  /** Sunucusuz modda davet bağlantısına gömülecek oda ayarları. */
+  adminUid: string
+  visibility: RoomVisibility
 }
 
 export function InviteModal({
@@ -21,13 +25,18 @@ export function InviteModal({
   roomId,
   memberCount,
   capacity,
+  adminUid,
+  visibility,
 }: InviteModalProps) {
   const { pushToast } = useToast()
   const [copied, setCopied] = useState(false)
   const [copying, setCopying] = useState(false)
 
-  // Kapasite bağlantıya gömülür: sunucusuz modda katılan herkes aynı sınırı kullanır.
-  const roomUrl = typeof window === 'undefined' ? '' : buildRoomUrl(roomId, capacity)
+  // Kapasite ve oda ayarları bağlantıya gömülür: kapasite, yönetici, görünürlük.
+  const roomUrl =
+    typeof window === 'undefined'
+      ? ''
+      : buildRoomUrl(roomId, { capacity, adminUid, visibility })
   const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
   useEffect(() => {

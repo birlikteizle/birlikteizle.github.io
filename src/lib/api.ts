@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   PlaybackStatus,
   RoomSnapshot,
+  RoomVisibility,
   VideoProvider,
   VideoSource,
 } from '@/types'
@@ -118,10 +119,10 @@ export const api = {
   me: (token: string, signal?: AbortSignal) =>
     request<{ user: AppUser }>('/api/auth/me', { token, signal }),
 
-  createRoom: (source: VideoSource | null, capacity?: number) =>
+  createRoom: (source: VideoSource | null, capacity?: number, visibility?: RoomVisibility) =>
     request<{ roomId: string }>('/api/rooms', {
       method: 'POST',
-      body: { source, capacity },
+      body: { source, capacity, visibility },
     }),
 
   joinRoom: (roomId: string) =>
@@ -140,6 +141,13 @@ export const api = {
     request<{ message: ChatMessage }>(`/api/rooms/${roomId}/messages`, {
       method: 'POST',
       body: { text },
+    }),
+
+  /** Yönetici bir kişiye oynatma yetkisi verir veya geri alır. */
+  setRoomManager: (roomId: string, uid: string, grant: boolean) =>
+    request<{ ok: boolean; managers: string[] }>(`/api/rooms/${roomId}/managers`, {
+      method: 'POST',
+      body: { uid, grant },
     }),
 
   ping: (roomId: string) =>

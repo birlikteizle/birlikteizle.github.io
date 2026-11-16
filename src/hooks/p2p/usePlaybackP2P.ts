@@ -41,7 +41,7 @@ export function usePlaybackP2P(roomId: string, uid: string): UsePlaybackResult {
       const initial = buildInitialPlayback(initialSource, uid)
       lastAppliedAtRef.current = initial.updatedAt
       setPlayback(initial)
-      room.sendState(initial)
+      room.sendState(initial, uid)
     }
     setLoading(false)
 
@@ -49,6 +49,9 @@ export function usePlaybackP2P(roomId: string, uid: string): UsePlaybackResult {
       if (event.type === 'state') {
         const incoming = event.playback
         const current = playbackRef.current
+
+        // Oynatmayı yalnızca oda yöneticisi ve yetki verdiği kişiler değiştirebilir.
+        if (event.from && roomRef.current && !roomRef.current.canManageFrom(event.from)) return
 
         if (!shouldApplyPlayback(incoming, current, lastAppliedAtRef.current)) return
 
@@ -60,7 +63,7 @@ export function usePlaybackP2P(roomId: string, uid: string): UsePlaybackResult {
         if (event.peerIds.length > 0) {
           // Yeni katılan taraf mevcut durumu öğrensin.
           const current = playbackRef.current
-          if (current?.sourceUrl) room.sendState(current)
+          if (current?.sourceUrl) room.sendState(current, uid)
           setSyncNonce((value) => value + 1)
         }
       } else if (event.type === 'error') {
@@ -98,7 +101,7 @@ export function usePlaybackP2P(roomId: string, uid: string): UsePlaybackResult {
       lastAppliedAtRef.current = next.updatedAt
       playbackRef.current = next
       setPlayback(next)
-      roomRef.current?.sendState(next)
+      roomRef.current?.sendState(next, uid)
 
       return commandId
     },
