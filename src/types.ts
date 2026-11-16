@@ -25,8 +25,6 @@ export interface RoomInfo {
   capacity: number
   /** Herkese açık odalar (ileride) listelenebilir; özel odalar listelenmez. */
   visibility: RoomVisibility
-  /** Yöneticinin yetki verdiği kişiler (oynatmayı onlar da yönetebilir). */
-  managers: string[]
 }
 
 export type RoomVisibility = 'public' | 'private'

@@ -22,18 +22,16 @@
 
 ## Yetkiler ve roller
 
-Odayı oluşturan kişi **yönetici** olur. Yönetici:
+Odayı oluşturan kişi **yönetici** olur ve oynatmayı **yalnızca o** yönetir:
 
-- oynat/duraklat, sarma, hız ve kaynak değiştirmeyi yapar,
-- odadaki katılımcı listesinden **başkalarına yetki verebilir** ("Yetki ver"),
-- verdiği yetkiyi geri alabilir ("Yetkiyi al"),
-- odayı kapatabilir.
+- oynat/duraklat, sarma, hız ve kaynak değiştirme,
+- odayı kapatma.
 
-Yetki verilen kişiler oynatmayı yönetebilir; diğerleri izler, sohbet eder ve sesli sohbete
-katılabilir. Ses seviyesi, altyazı ve tam ekran herkes için **yereldir**.
+Diğer katılımcılar izler, sohbet eder ve sesli sohbete katılabilir. Ses seviyesi, altyazı ve
+tam ekran herkeste **yereldir**.
 
 > Sunucusuz (P2P) modda yönetici, davet bağlantısındaki `?a=` kimliğiyle eşleşen kullanıcıdır.
-> Yetkiyi yalnızca o kişi değiştirebilir; yetki listesi bağlantıyla ve oda içi mesajlarla taşınır.
+> Bu yüzden davet bağlantısını **başka bir cihazda** açarsan o cihazda yönetici olamazsın.
 
 ## Sesli sohbet
 

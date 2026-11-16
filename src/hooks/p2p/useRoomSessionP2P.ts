@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AppUser, RoomInfo, RoomMembers, RoomPresenceMap } from '@/types'
 import { isValidRoomId } from '@/lib/ids'
 import { retainP2PRoom, selfMember } from '@/lib/p2p/room'
@@ -12,8 +12,7 @@ import type { RoomSessionResult, RoomSessionStatus } from '@/hooks/roomSessionTy
  * Üyelik listesi karşı tarafın tanıtım mesajından (`hello`) öğrenilir; kimse
  * yoksa oda boş görünür ve katılımcı beklenir.
  *
- * Yönetici, davet bağlantısındaki `?a=` değeriyle eşleşen kullanıcıdır; yetki
- * listesini yalnızca o değiştirebilir.
+ * Odayı kuran kişi (davet bağlantısındaki `?a=` kimliği) yöneticidir.
  */
 export function useRoomSessionP2P(
   roomId: string | undefined,
@@ -23,7 +22,6 @@ export function useRoomSessionP2P(
   const [error, setError] = useState<string | null>(null)
   const [members, setMembers] = useState<RoomMembers>({})
   const [presence, setPresence] = useState<RoomPresenceMap>({})
-  const [managers, setManagers] = useState<string[]>([])
 
   const uid = user.uid
   const displayName = user.displayName
@@ -33,9 +31,7 @@ export function useRoomSessionP2P(
   const capacity = linkMeta.capacity
   const adminUid = linkMeta.adminUid
 
-  /** Yönetici bilinmiyorsa (eski bağlantılar) herkes yönetebilir. */
-  const isAdmin = !adminUid || adminUid === uid
-  const canManage = isAdmin || managers.includes(uid)
+  const canManage = !adminUid || adminUid === uid
 
   const info = useMemo<RoomInfo>(
     () => ({
@@ -44,15 +40,9 @@ export function useRoomSessionP2P(
       status: 'active',
       capacity,
       visibility: linkMeta.visibility,
-      managers,
     }),
-    [adminUid, uid, me.joinedAt, capacity, linkMeta.visibility, managers],
+    [adminUid, uid, me.joinedAt, capacity, linkMeta.visibility],
   )
-
-  const membersRef = useRef<RoomMembers>({})
-  membersRef.current = members
-  const managersRef = useRef<string[]>([])
-  managersRef.current = managers
 
   useEffect(() => {
     if (!roomId || !isValidRoomId(roomId)) {
@@ -71,13 +61,8 @@ export function useRoomSessionP2P(
       switch (event.type) {
         case 'peers': {
           if (event.peerIds.length > 0) {
-            // Karşı taraf bağlandı: kimliğimizi (ve yöneticiysek yetki listesini) tanıt.
-            const mine: string[] = []
-            const payload = {
-              member: me,
-              managers: managersRef.current.length > 0 || isAdmin ? managersRef.current : mine,
-            }
-            room.sendHello(payload)
+            // Karşı taraf bağlandı: kimliğimizi tanıt.
+            room.sendHello({ member: me })
           } else {
             // Bağlı kimse kalmadı: herkesi çevrimdışı işaretle.
             setPresence((previous) => {
@@ -103,16 +88,6 @@ export function useRoomSessionP2P(
             ...previous,
             [partner.uid]: { online: true, lastSeen: Date.now() },
           }))
-          // Yetki listesini yalnızca yöneticinin tanıtımı belirler.
-          if (adminUid && partner.uid === adminUid && Array.isArray(event.hello.managers)) {
-            setManagers(event.hello.managers)
-            room.setManagers(event.hello.managers)
-          }
-          break
-        }
-        case 'permissions': {
-          if (adminUid && event.from !== adminUid) break
-          setManagers(event.managers)
           break
         }
         case 'bye': {
@@ -139,23 +114,7 @@ export function useRoomSessionP2P(
       unsubscribe()
       release()
     }
-  }, [roomId, uid, me, adminUid, isAdmin])
+  }, [roomId, uid, me])
 
-  const setManager = useCallback(
-    async (targetUid: string, grant: boolean) => {
-      if (!isAdmin) throw new Error('Yetki verme hakkı yalnızca oda yöneticisindedir.')
-      if (!targetUid || targetUid === adminUid) return
-
-      const next = grant
-        ? Array.from(new Set([...managersRef.current, targetUid]))
-        : managersRef.current.filter((value) => value !== targetUid)
-
-      setManagers(next)
-      const room = retainP2PRoom(roomId ?? '').room
-      room.broadcastManagers(next, uid)
-    },
-    [adminUid, isAdmin, roomId, uid],
-  )
-
-  return { status, error, info, members, presence, canManage, setManager }
+  return { status, error, info, members, presence, canManage }
 }

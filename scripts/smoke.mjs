@@ -120,20 +120,6 @@ assert(playback.playback.updatedBy === ali.user.uid, 'komutu gönderen kullanıc
 step('Oynatma komutu', `${playback.playback.currentTime}s · ${playback.playback.status}`)
 
 // Yönetici yetki verirse o kişi de yönetebilir.
-const granted = await call(`/api/rooms/${roomId}/managers`, {
-  method: 'POST',
-  token: ali.token,
-  body: { uid: ayse.user.uid, grant: true },
-})
-assert(granted.managers.includes(ayse.user.uid), 'yetki listesine eklenmeli')
-
-const afterGrant = await call(`/api/rooms/${roomId}/playback`, {
-  method: 'POST',
-  token: ayse.token,
-  body: { status: 'paused', currentTime: 55, playbackRate: 1, commandId: `granted-${Date.now()}` },
-})
-assert(afterGrant.playback.updatedBy === ayse.user.uid, 'yetkili kişi oynatmayı değiştirebilmeli')
-step('Yetki devri', 'yetki verilen kişi oynatmayı yönetti')
 
 const message = await call(`/api/rooms/${roomId}/messages`, {
   method: 'POST',
@@ -161,15 +147,6 @@ const fullResponse = await fetch(`${base}/api/rooms/${roomId}/join`, {
 })
 assert(fullResponse.status === 409, `üçüncü kişi 409 almalı, gelen: ${fullResponse.status}`)
 step('Oda kapasitesi', '2 kişilik oda: 409 ROOM_FULL')
-
-// Üye olmayan birine yetki verilemez.
-const badGrant = await fetch(`${base}/api/rooms/${roomId}/managers`, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', authorization: `Bearer ${ali.token}` },
-  body: JSON.stringify({ uid: third.user.uid, grant: true }),
-})
-assert(badGrant.status === 400, `üye olmayana yetki 400 dönmeli, gelen: ${badGrant.status}`)
-step('Yetki güvenliği', 'üye olmayan hedef reddedildi')
 
 // Kapasite ayarı: 3 kişilik oda üçüncüyü kabul eder, dördüncüyü reddeder
 const room3 = await call('/api/rooms', {

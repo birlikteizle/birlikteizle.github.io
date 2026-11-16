@@ -2,11 +2,27 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { retainP2PRoom } from '@/lib/p2p/room'
 import { voiceErrorMessage, type VoiceChatResult, type VoicePeer } from '@/hooks/voiceChatTypes'
 
+interface PeerMedia {
+  uid: string
+  name: string
+  mic: boolean
+  cam: boolean
+  audio: MediaStream | null
+  video: MediaStream | null
+}
+
+function mergeStreams(entry: PeerMedia): MediaStream | null {
+  const tracks = [...(entry.audio?.getTracks() ?? []), ...(entry.video?.getTracks() ?? [])]
+  if (tracks.length === 0) return null
+  return new MediaStream(tracks)
+}
+
 /**
  * Sunucusuz (P2P) sesli sohbet.
  *
- * Mikrofon ve kamera **kapalı** başlar; "Sese katıl" ile mikrofon izni istenir.
- * Akış Trystero üzerinden tüm eşlere doğrudan gönderilir (mesh).
+ * Mikrofon ve kamera **kapalı** başlar. Ses ve görüntü ayrı akışlar olarak
+ * yayınlanır ve alıcı tarafta tek akışta birleştirilir; böylece kamera sonradan
+ * açıldığında ses bağlantısı kopmadan görüntü eklenir.
  */
 export function useVoiceChatP2P(
   roomId: string,
@@ -20,14 +36,25 @@ export function useVoiceChatP2P(
   const [peers, setPeers] = useState<VoicePeer[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  const audioStreamRef = useRef<MediaStream | null>(null)
+  const videoStreamRef = useRef<MediaStream | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const inVoiceRef = useRef(false)
   inVoiceRef.current = inVoice
   const roomRef = useRef<ReturnType<typeof retainP2PRoom>['room'] | null>(null)
-  const peersRef = useRef(new Map<string, VoicePeer>())
+  const peersRef = useRef(new Map<string, PeerMedia>())
 
   const publishPeers = useCallback(() => {
-    setPeers([...peersRef.current.values()])
+    setPeers(
+      [...peersRef.current.entries()].map(([id, entry]) => ({
+        id,
+        uid: entry.uid,
+        name: entry.name,
+        stream: mergeStreams(entry),
+        micOn: entry.mic,
+        camOn: entry.cam,
+      })),
+    )
   }, [])
 
   const announce = useCallback(
@@ -37,54 +64,72 @@ export function useVoiceChatP2P(
     [displayName, uid],
   )
 
+  const rebuildLocalStream = useCallback(() => {
+    const tracks = [
+      ...(audioStreamRef.current?.getTracks() ?? []),
+      ...(videoStreamRef.current?.getTracks() ?? []),
+    ]
+    const stream = tracks.length > 0 ? new MediaStream(tracks) : null
+    localStreamRef.current = stream
+    setLocalStream(stream)
+  }, [])
+
   useEffect(() => {
     const { room, release } = retainP2PRoom(roomId)
     roomRef.current = room
 
     const unsubscribe = room.subscribe((event) => {
       if (event.type === 'voice-stream') {
-        const existing = peersRef.current.get(event.peerId)
-        peersRef.current.set(event.peerId, {
-          id: event.peerId,
-          uid: existing?.uid ?? '',
-          name: existing?.name ?? 'Katılımcı',
-          stream: event.stream,
-          micOn: existing?.micOn ?? true,
-          camOn: existing?.camOn ?? event.stream.getVideoTracks().length > 0,
-        })
+        const existing = peersRef.current.get(event.peerId) ?? {
+          uid: '',
+          name: 'Katılımcı',
+          mic: true,
+          cam: false,
+          audio: null,
+          video: null,
+        }
+        if (event.video) existing.video = event.stream
+        else existing.audio = event.stream
+        existing.cam = Boolean(existing.video)
+        peersRef.current.set(event.peerId, existing)
         publishPeers()
       } else if (event.type === 'voice-state') {
         if (event.uid === uid) return
-        const existing = [...peersRef.current.entries()].find(([, peer]) => peer.uid === event.uid)
-        if (event.name) {
-          const id = existing?.[0] ?? event.uid
-          peersRef.current.set(id, {
-            id,
-            uid: event.uid,
-            name: event.name,
-            stream: existing?.[1].stream ?? null,
-            micOn: event.mic,
-            camOn: event.cam,
-          })
-          publishPeers()
-        } else if (existing) {
-          peersRef.current.delete(existing[0])
-          publishPeers()
+        const entry = [...peersRef.current.entries()].find(([, peer]) => peer.uid === event.uid)
+        if (!event.name) {
+          if (entry) {
+            peersRef.current.delete(entry[0])
+            publishPeers()
+          }
+          return
         }
+        const id = entry?.[0] ?? event.uid
+        const peer = entry?.[1] ?? {
+          uid: event.uid,
+          name: event.name,
+          mic: event.mic,
+          cam: event.cam,
+          audio: null,
+          video: null,
+        }
+        peer.uid = event.uid
+        peer.name = event.name
+        peer.mic = event.mic
+        peer.cam = event.cam
+        peersRef.current.set(id, peer)
+        publishPeers()
       } else if (event.type === 'voice-gone') {
-        // Eş ayrıldı: kaydı ve akışını düşür.
-        const existing = peersRef.current.get(event.peerId)
-        if (existing) {
-          peersRef.current.delete(event.peerId)
-          publishPeers()
-        }
+        if (peersRef.current.delete(event.peerId)) publishPeers()
       }
     })
 
     return () => {
       unsubscribe()
-      const stream = localStreamRef.current
-      for (const track of stream?.getTracks() ?? []) track.stop()
+      for (const stream of [audioStreamRef.current, videoStreamRef.current]) {
+        for (const track of stream?.getTracks() ?? []) track.stop()
+      }
+      audioStreamRef.current = null
+      videoStreamRef.current = null
       localStreamRef.current = null
       room.removeVoiceStream()
       peersRef.current.clear()
@@ -103,24 +148,27 @@ export function useVoiceChatP2P(
     }
 
     try {
-      // Mikrofon açık, kamera kapalı başlar.
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      localStreamRef.current = stream
-      setLocalStream(stream)
+      const audio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      audioStreamRef.current = audio
+      videoStreamRef.current = null
+      rebuildLocalStream()
       setInVoice(true)
       setMicEnabled(true)
       setCameraEnabled(false)
 
-      await roomRef.current?.addVoiceStream(stream)
+      await roomRef.current?.addVoiceStream(audio, false)
       announce(true, false)
     } catch (caught) {
       setError(voiceErrorMessage(caught))
     }
-  }, [announce])
+  }, [announce, rebuildLocalStream])
 
   const leave = useCallback(() => {
-    const stream = localStreamRef.current
-    for (const track of stream?.getTracks() ?? []) track.stop()
+    for (const stream of [audioStreamRef.current, videoStreamRef.current]) {
+      for (const track of stream?.getTracks() ?? []) track.stop()
+    }
+    audioStreamRef.current = null
+    videoStreamRef.current = null
     localStreamRef.current = null
     setLocalStream(null)
     setInVoice(false)
@@ -131,7 +179,7 @@ export function useVoiceChatP2P(
   }, [uid])
 
   const toggleMic = useCallback(() => {
-    const stream = localStreamRef.current
+    const stream = audioStreamRef.current
     if (!stream) return
     const tracks = stream.getAudioTracks()
     if (tracks.length === 0) return
@@ -142,42 +190,37 @@ export function useVoiceChatP2P(
   }, [announce, cameraEnabled])
 
   const toggleCamera = useCallback(async () => {
-    const stream = localStreamRef.current
     const room = roomRef.current
-    if (!stream || !room) return
+    if (!room || !inVoiceRef.current) return
     setError(null)
 
     try {
       if (cameraEnabled) {
-        // Kamerayı kapat: video kanalını durdur ve akışı yeniden yayınla.
-        for (const track of stream.getVideoTracks()) track.stop()
-        const audioOnly = new MediaStream(stream.getAudioTracks())
-        room.removeVoiceStream()
-        localStreamRef.current = audioOnly
-        setLocalStream(audioOnly)
+        const stream = videoStreamRef.current
+        videoStreamRef.current = null
+        if (stream) room.removeVoiceStream(stream)
+        for (const track of stream?.getTracks() ?? []) track.stop()
+        rebuildLocalStream()
         setCameraEnabled(false)
-        await room.addVoiceStream(audioOnly)
         announce(micEnabled, false)
         return
       }
 
       const camera = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'user' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
       })
-      const videoTrack = camera.getVideoTracks()[0]
-      if (!videoTrack) return
+      if (camera.getVideoTracks().length === 0) return
 
-      const combined = new MediaStream([...stream.getAudioTracks(), videoTrack])
-      room.removeVoiceStream()
-      localStreamRef.current = combined
-      setLocalStream(combined)
+      videoStreamRef.current = camera
+      rebuildLocalStream()
       setCameraEnabled(true)
-      await room.addVoiceStream(combined)
+      await room.addVoiceStream(camera, true)
       announce(micEnabled, true)
     } catch (caught) {
       setError(voiceErrorMessage(caught))
     }
-  }, [announce, cameraEnabled, micEnabled])
+  }, [announce, cameraEnabled, micEnabled, rebuildLocalStream])
 
   return {
     inVoice,

@@ -8,8 +8,6 @@ export interface RoomSessionResult {
   info: RoomInfo | null
   members: RoomMembers
   presence: RoomPresenceMap
-  /** Bu oturumdaki kullanıcı oynatmayı yönetebilir mi? */
+  /** Bu oturumdaki kullanıcı oynatmayı yönetebilir mi? (Odayı kuran kişi.) */
   canManage: boolean
-  /** Yönetici bir kişiye oynatma yetkisi verir veya geri alır. */
-  setManager: (uid: string, grant: boolean) => Promise<void>
 }

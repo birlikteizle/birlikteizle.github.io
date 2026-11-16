@@ -105,9 +105,17 @@ export function useVoiceChatServer(
       }
 
       pc.ontrack = (event) => {
-        const [stream] = event.streams
-        if (!stream) return
-        peer.stream = stream
+        // `addTransceiver` ile açılan video kanalı bir MediaStream'e bağlı
+        // olmadığı için `event.streams` boş gelebilir. Bu durumda kanalı kendi
+        // akışımıza ekliyoruz; aksi halde kamera görüntüsü hiç görünmüyordu.
+        const [remoteStream] = event.streams
+        if (remoteStream) {
+          peer.stream = remoteStream
+        } else {
+          const stream = peer.stream ?? new MediaStream()
+          if (!stream.getTracks().includes(event.track)) stream.addTrack(event.track)
+          peer.stream = stream
+        }
         publish()
       }
 

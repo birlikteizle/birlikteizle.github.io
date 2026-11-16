@@ -143,13 +143,6 @@ export const api = {
       body: { text },
     }),
 
-  /** Yönetici bir kişiye oynatma yetkisi verir veya geri alır. */
-  setRoomManager: (roomId: string, uid: string, grant: boolean) =>
-    request<{ ok: boolean; managers: string[] }>(`/api/rooms/${roomId}/managers`, {
-      method: 'POST',
-      body: { uid, grant },
-    }),
-
   ping: (roomId: string) =>
     request<{ ok: boolean; now: number }>(`/api/rooms/${roomId}/ping`, {
       method: 'POST',

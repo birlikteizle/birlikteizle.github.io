@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AppUser, RoomInfo, RoomMembers, RoomPresenceMap } from '@/types'
 import { api, ApiError } from '@/lib/api'
 import { mapApiError } from '@/lib/errors'
@@ -134,18 +134,7 @@ export function useRoomSessionServer(
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [status, roomId])
 
-  const canManage =
-    Boolean(info?.createdBy) &&
-    (info?.createdBy === uid || Boolean(info?.managers?.includes(uid)))
+  const canManage = Boolean(info?.createdBy) && info?.createdBy === uid
 
-  const setManager = useCallback(
-    async (targetUid: string, grant: boolean) => {
-      if (!roomId) return
-      const result = await api.setRoomManager(roomId, targetUid, grant)
-      setInfo((previous) => (previous ? { ...previous, managers: result.managers } : previous))
-    },
-    [roomId],
-  )
-
-  return { status, error, info, members, presence, canManage, setManager }
+  return { status, error, info, members, presence, canManage }
 }

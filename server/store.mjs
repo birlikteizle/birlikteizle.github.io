@@ -34,7 +34,6 @@ function normalizeState(raw) {
       room.info.capacity = 2
     }
     if (room.info.visibility !== 'private') room.info.visibility = 'public'
-    if (!Array.isArray(room.info.managers)) room.info.managers = []
     room.members = room.members && typeof room.members === 'object' ? room.members : {}
     room.messages = Array.isArray(room.messages) ? room.messages.slice(-300) : []
     if (!room.playback || typeof room.playback !== 'object') {

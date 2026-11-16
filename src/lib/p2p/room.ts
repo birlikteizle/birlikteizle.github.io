@@ -69,8 +69,6 @@ function friendlyError(code: string, fallback: string): string {
 
 export interface HelloPayload {
   member: RoomMember
-  /** Yönetici tanıtım gönderdiğinde güncel yetki listesi de taşınır. */
-  managers?: string[]
 }
 
 type Wire =
@@ -78,7 +76,6 @@ type Wire =
   | { t: 'st'; playback: PlaybackState; from: string }
   | { t: 'msg'; message: ChatMessage }
   | { t: 'hist'; messages: ChatMessage[] }
-  | { t: 'pm'; managers: string[]; from: string }
   | { t: 'vs'; uid: string; name: string; mic: boolean; cam: boolean }
   | { t: 'bye'; uid: string }
 
@@ -87,8 +84,7 @@ export type P2PEvent =
   | { type: 'state'; playback: PlaybackState; from: string }
   | { type: 'chat'; message: ChatMessage }
   | { type: 'history'; messages: ChatMessage[] }
-  | { type: 'permissions'; managers: string[]; from: string }
-  | { type: 'voice-stream'; stream: MediaStream; peerId: string }
+  | { type: 'voice-stream'; stream: MediaStream; peerId: string; video: boolean }
   | { type: 'voice-gone'; peerId: string }
   | { type: 'voice-state'; uid: string; name: string; mic: boolean; cam: boolean }
   | { type: 'bye'; uid: string }
@@ -111,7 +107,6 @@ class P2PRoom {
   readonly capacity: number
   /** Odanın yöneticisi (davet bağlantısından gelir). Boşsa kısıt uygulanmaz. */
   readonly adminUid: string
-  private managers: string[] = []
   private room: Room
   private action: MessageAction<Wire>
   private listeners = new Set<Listener>()
@@ -145,9 +140,14 @@ class P2PRoom {
       }),
       this.room.onPeerStream((stream, context) => {
         // Akışlar metadata ile ayrılır: sesli sohbet mi, ekran paylaşımı mı?
-        const meta = context.metadata as { voice?: boolean } | undefined
+        const meta = context.metadata as { voice?: boolean; video?: boolean } | undefined
         if (meta?.voice) {
-          this.emit({ type: 'voice-stream', stream, peerId: context.peerId })
+          this.emit({
+            type: 'voice-stream',
+            stream,
+            peerId: context.peerId,
+            video: Boolean(meta.video),
+          })
           return
         }
         this.emit({ type: 'stream', stream, peerId: context.peerId })
@@ -175,12 +175,6 @@ class P2PRoom {
         break
       case 'hist':
         this.emit({ type: 'history', messages: data.messages })
-        break
-      case 'pm':
-        // Yetkiyi yalnızca oda yöneticisi değiştirebilir.
-        if (this.adminUid && data.from !== this.adminUid) break
-        this.setManagers(data.managers)
-        this.emit({ type: 'permissions', managers: this.managers, from: data.from })
         break
       case 'vs':
         this.emit({
@@ -249,25 +243,9 @@ class P2PRoom {
     void this.action.send({ t: 'bye', uid }).catch(() => undefined)
   }
 
-  setManagers(managers: string[]): void {
-    this.managers = Array.isArray(managers) ? [...managers] : []
-  }
-
-  getManagers(): string[] {
-    return [...this.managers]
-  }
-
-  /** Yönetici yetki verdi mi? Yönetici bilinmiyorsa kısıt uygulanmaz. */
+  /** Oynatma komutunu yalnızca oda yöneticisi gönderebilir. */
   canManageFrom(uid: string): boolean {
-    if (!this.adminUid) return true
-    if (uid === this.adminUid) return true
-    return this.managers.includes(uid)
-  }
-
-  /** Yönetici yetki listesini değiştirdiğinde tüm odaya duyurur. */
-  broadcastManagers(managers: string[], from: string): void {
-    this.setManagers(managers)
-    void this.action.send({ t: 'pm', managers, from }).catch(() => undefined)
+    return !this.adminUid || uid === this.adminUid
   }
 
   async addStream(stream: MediaStream): Promise<void> {
@@ -276,15 +254,17 @@ class P2PRoom {
   }
 
   /** Sesli sohbet akışını paylaşır (ekran paylaşımından ayrı etiketlenir). */
-  async addVoiceStream(stream: MediaStream): Promise<void> {
+  async addVoiceStream(stream: MediaStream, video = false): Promise<void> {
     this.voiceStream = stream
-    await this.room.addStream(stream, { metadata: { voice: true } })
+    await this.room.addStream(stream, { metadata: { voice: true, video } })
   }
 
-  removeVoiceStream(): void {
-    const stream = this.voiceStream
-    this.voiceStream = null
-    if (stream) this.room.removeStream(stream)
+  /** Belirtilen akışı yayından çıkarır (ses ve görüntü ayrı yayınlanabilsin). */
+  removeVoiceStream(stream?: MediaStream): void {
+    const target = stream ?? this.voiceStream
+    if (stream && this.voiceStream === stream) this.voiceStream = null
+    else if (!stream) this.voiceStream = null
+    if (target) this.room.removeStream(target)
   }
 
   /** Mikrofon/kamera durumunu odaya duyurur. */

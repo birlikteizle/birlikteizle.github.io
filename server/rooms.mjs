@@ -23,47 +23,6 @@ export function normalizeVisibility(value) {
   return value === 'private' ? 'private' : 'public'
 }
 
-/** Yetki verilmiş kişilerin listesini güvenli biçimde normalize eder. */
-export function normalizeManagers(value) {
-  if (!Array.isArray(value)) return []
-  return value.filter((uid) => typeof uid === 'string' && uid.length > 0).slice(0, 200)
-}
-
-/** Bu kullanıcı oynatmayı yönetebilir mi? (Kuran kişi veya yetki verilenler.) */
-export function canManageRoom(room, uid) {
-  if (!room) return false
-  const info = room.info ?? {}
-  if (info.createdBy === uid) return true
-  return normalizeManagers(info.managers).includes(uid)
-}
-
-/** Yöneticinin bir kişiye yetki verip vermediğini değiştirir. */
-export function setRoomManager(state, roomId, actor, targetUid, grant) {
-  const room = state.rooms[roomId]
-  if (!room) throw new RoomError('ROOM_NOT_FOUND', 'Oda bulunamadı.', 404)
-
-  if (room.info?.createdBy !== actor.uid) {
-    throw new RoomError('ADMIN_ONLY', 'Yetki verme hakkı yalnızca oda yöneticisindedir.', 403)
-  }
-  if (!targetUid || targetUid === room.info.createdBy) {
-    throw new RoomError('INVALID_TARGET', 'Yöneticinin kendi yetkisi değiştirilemez.', 400)
-  }
-
-  // Yetki yalnızca odanın gerçek bir üyesine verilebilir.
-  const isMember = Object.values(room.members ?? {}).some((member) => member?.uid === targetUid)
-  if (!isMember) {
-    throw new RoomError('INVALID_TARGET', 'Yetki verilecek kişi bu odanın üyesi değil.', 400)
-  }
-
-  const managers = normalizeManagers(room.info.managers)
-  const next = grant
-    ? Array.from(new Set([...managers, targetUid]))
-    : managers.filter((uid) => uid !== targetUid)
-
-  room.info.managers = next
-  return next
-}
-
 export class RoomError extends Error {
   constructor(code, message, status = 400) {
     super(message)
@@ -257,7 +216,6 @@ export function createRoom(state, user, source, capacity, visibility) {
       status: 'active',
       capacity: normalizeCapacity(capacity),
       visibility: normalizeVisibility(visibility),
-      managers: [],
     },
     members: { s0: { ...memberOf(user), joinedAt: now } },
     playback: {
@@ -330,11 +288,11 @@ export function applyPlayback(state, roomId, user, command) {
   const room = state.rooms[roomId]
   if (!room) throw new RoomError('ROOM_NOT_FOUND', 'Oda bulunamadı.', 404)
 
-  // Oynatmayı yalnızca odayı kuran yönetici ve yetki verdiği kişiler değiştirebilir.
-  if (!canManageRoom(room, user.uid)) {
+  // Oynatmayı yalnızca odayı kuran yönetici değiştirebilir.
+  if (room.info?.createdBy && room.info.createdBy !== user.uid) {
     throw new RoomError(
       'ADMIN_ONLY',
-      'Oynatmayı yalnızca oda yöneticisi ve yetki verdiği kişiler değiştirebilir.',
+      'Oynatmayı yalnızca odayı kuran yönetici değiştirebilir.',
       403,
     )
   }

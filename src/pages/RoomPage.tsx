@@ -68,7 +68,6 @@ function RoomGate({ roomId, user }: { roomId: string | undefined; user: AppUser 
         members={session.members}
         presence={session.presence}
         canManage={session.canManage}
-        setManager={session.setManager}
       />
     )
   }
@@ -92,7 +91,6 @@ function RoomReady({
   members,
   presence,
   canManage,
-  setManager,
 }: {
   roomId: string
   user: AppUser
@@ -100,7 +98,6 @@ function RoomReady({
   members: RoomMembers
   presence: RoomPresenceMap
   canManage: boolean
-  setManager: (uid: string, grant: boolean) => Promise<void>
 }) {
   const navigate = useNavigate()
   const { pushToast } = useToast()
@@ -220,9 +217,6 @@ function RoomReady({
           presence={presence}
           selfUid={user.uid}
           adminUid={info?.createdBy ?? ''}
-          managers={info?.managers ?? []}
-          canGrant={canManage && info?.createdBy === user.uid}
-          onToggleManager={setManager}
         />
       ) : null}
 
